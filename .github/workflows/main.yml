@@ -11,7 +11,8 @@ env:
   REGISTRY: ghcr.io
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
   build:
@@ -45,3 +46,11 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
       - run: npm run docker_build
+      - name: Run Another Release Please
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: ZeroWiggliness/another-release-please-action@v0.2.2
+        with:
+          command: release,release-pr
+          token: ${{ secrets.ARP_TOKEN }}
+          target-branch: main
+          release-branches: main
