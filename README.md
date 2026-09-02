@@ -10,7 +10,7 @@
 <a href="https://httpyac.github.io/">
 <img src="https://httpyac.github.io/httpyac_site.png" alt="HttpYac" />
 </a>
-<img src="https://raw.githubusercontent.com/AnWeber/httpyac/main/assets/cli.gif" alt="HttpYac CLI" />
+<img src="https://raw.githubusercontent.com/ZeroWiggliness/httpyac/main/assets/cli.gif" alt="HttpYac CLI" />
 </p>
 
 ## Installation
@@ -23,7 +23,7 @@ httpyac --version
 or using docker
 
 ```shell
-docker run -it -v ${PWD}:/data ghcr.io/anweber/httpyac:latest --version
+docker run -it -v ${PWD}:/data ghcr.io/zerowiggliness/httpyac:latest --version
 ```
 
 ## Commands
