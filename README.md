@@ -4,7 +4,7 @@
 
 # HttpYac (ZW edition)
 
-This edition is based on the fantastic work of the original author, [Andreas Weber](https://github.com/AnWeber). The project is not maintained as frequently as the original, and this fork provides additional features and updates.
+This edition is based on the fantastic work of the original author, [Andreas Weber](https://github.com/AnWeber). The original project is not maintained frequently, and this fork provides additional features and updates.
 
 ### ZW edition updates
 
