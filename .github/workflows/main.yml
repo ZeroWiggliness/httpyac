@@ -27,13 +27,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Run Another Release Please
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: ZeroWiggliness/another-release-please-action@v0.2.2
         with:
           command: release,release-pr
           token: ${{ secrets.ARP_TOKEN }}
           target-branch: main
-          release-branches: main
+          release-branches: "main,release/v*"
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
