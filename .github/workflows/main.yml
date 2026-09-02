@@ -12,6 +12,9 @@ on:
 env:
   REGISTRY: ghcr.io
 
+permissions:
+  contents: read
+
 jobs:
   build:
     strategy:
@@ -33,10 +36,14 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm install
-      - run: npm run lint
-      - run: npm test -- --coverage
-      - run: npm run build -- --no-minify
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test -- --coverage
+      - name: Build
+        run: npm run build -- --no-minify
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
       - run: npm run docker_build
