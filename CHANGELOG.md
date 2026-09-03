@@ -442,7 +442,7 @@
 
 ### Features
 
-- add Additional orchestration capabilities by providing [`$httpyac`](https://github.com/AnWeber/httpyac/blob/main/src/plugins/javascript/httpyacJsApi.ts) in Script (#405)
+- add Additional orchestration capabilities by providing [`$httpyac`](https://github.com/ZeroWiggliness/httpyac/blob/main/src/plugins/javascript/httpyacJsApi.ts) in Script (#405)
 
 ### Fixes
 
@@ -895,7 +895,7 @@ GET https://httpbin.org/json
 
 - The internal project structure was revised and a better separation of the plugin components was achieved. These are preparations to possibly provide an ESM build or support vscode.dev in the future.
 - Setting Got Options directly on the request will be removed in one of the next versions. Got checks in v12 whether only valid options are set. But since options and custom properties are mixed at the request object, such a separation would be difficult. Please change `request[...]` to `request.options[...]`.
-- function interface of [StreamLogger](https://github.com/AnWeber/httpyac/blob/main/src/models/logHandler.ts#L38) changed
+- function interface of [StreamLogger](https://github.com/ZeroWiggliness/httpyac/blob/main/src/models/logHandler.ts#L38) changed
 
 #### Features
 
@@ -1255,12 +1255,12 @@ after: (text: unknown, _type: string, context: ProcessorContext): Promise<unknow
 #### Features
 
 - advanced logging (#49)
-  - `--output` and `--output-failed` option to [format output](https://github.com/AnWeber/httpyac#commands)
+  - `--output` and `--output-failed` option to [format output](https://github.com/ZeroWiggliness/httpyac#commands)
   - `--json` option to create json output
   - `--filter` option to output only-failed requests
   - added meta data `title` and `description` to extend information of the logging
   - added summary after executing more requests
-- allow [loop](https://github.com/AnWeber/httpyac/blob/main/examples/metaData/loop.http) one requests multiple times with `for <var> of <iterable>`, `for <count>` or `while <condition>`
+- allow [loop](https://github.com/ZeroWiggliness/httpyac/blob/main/examples/metaData/loop.http) one requests multiple times with `for <var> of <iterable>`, `for <count>` or `while <condition>`
 
 #### Fix
 
@@ -1444,8 +1444,8 @@ after: (text: unknown, _type: string, context: ProcessorContext): Promise<unknow
 
 #### Breaking Changes
 
-- [Action](https://github.com/AnWeber/httpyac/blob/main/src/models/httpRegionAction.ts#L7) method changed to process instead of processor
-- [VariableReplacer](https://github.com/AnWeber/httpyac/blob/main/src/models/variableReplacer.ts#L5) changed to object with replace method, to implement better trust support
+- [Action](https://github.com/ZeroWiggliness/httpyac/blob/main/src/models/httpRegionAction.ts#L7) method changed to process instead of processor
+- [VariableReplacer](https://github.com/ZeroWiggliness/httpyac/blob/main/src/models/variableReplacer.ts#L5) changed to object with replace method, to implement better trust support
 
 #### Features
 
@@ -1463,8 +1463,8 @@ after: (text: unknown, _type: string, context: ProcessorContext): Promise<unknow
 
 #### Features
 
-- better [test](https://github.com/AnWeber/httpyac/blob/main/examples/README.md#node-js-scripts) method support
-- refactored response in script to [http response](https://github.com/AnWeber/httpyac/blob/main/src/models/httpResponse.ts) instead of body
+- better [test](https://github.com/ZeroWiggliness/httpyac/blob/main/examples/README.md#node-js-scripts) method support
+- refactored response in script to [http response](https://github.com/ZeroWiggliness/httpyac/blob/main/src/models/httpResponse.ts) instead of body
 
 #### Fix
 
@@ -1493,7 +1493,7 @@ after: (text: unknown, _type: string, context: ProcessorContext): Promise<unknow
 
 #### Fix
 
-- priority of config initialization adjusted ([#3](https://github.com/AnWeber/httpyac/issues/3))
+- priority of config initialization adjusted ([#3](https://github.com/ZeroWiggliness/httpyac/issues/3))
 
 ## 2.2.1 (2021-04-05)
 

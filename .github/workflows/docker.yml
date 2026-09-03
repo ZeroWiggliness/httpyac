@@ -7,13 +7,17 @@ on:
 env:
   REGISTRY: ghcr.io
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   docker:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        node-version: [18.x]
+        node-version: [24.x]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout

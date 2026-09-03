@@ -1,17 +1,17 @@
 {
-  "name": "httpyac",
+  "name": "@zerowiggliness/httpyac",
   "displayName": "httpYac - Yet Another Client",
   "license": "MIT",
-  "publisher": "AnWeber",
+  "publisher": "ZeroWiggliness",
   "description": "HTTP/REST CLI Client for *.http files",
-  "version": "6.16.7",
-  "homepage": "https://github.com/AnWeber/httpyac",
+  "version": "6.16.8",
+  "homepage": "https://github.com/ZeroWiggliness/httpyac",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AnWeber/httpyac"
+    "url": "https://github.com/ZeroWiggliness/httpyac"
   },
   "bugs": {
-    "url": "https://github.com/AnWeber/httpyac/issues"
+    "url": "https://github.com/ZeroWiggliness/httpyac/issues"
   },
   "icon": "icon.png",
   "keywords": [
@@ -28,10 +28,11 @@
     "EventSource",
     "MQTT",
     "ci",
-    "rest-client"
+    "rest-client",
+    "QUERY"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -48,7 +49,7 @@
     "lockfile-lint": "lockfile-lint --path package-lock.json --validate-https --allowed-hosts npm --validate-checksum --validate-integrity",
     "packageJson-lint": "node ./buildSrc/lintPackageJson.js",
     "prepack": "npm run build",
-    "prepare": "husky install",
+    "prepare": "husky",
     "start": "npm run watch",
     "test": "node --experimental-vm-modules ./node_modules/.bin/jest  --coverage --coverageProvider=v8",
     "tsc-watch": "tsc --watch --project tsconfig.build.json",
@@ -125,6 +126,6 @@
     "xpath": "^0.0.34"
   },
   "volta": {
-    "node": "20.11.1"
+    "node": "24.0.0"
   }
 }

@@ -4,13 +4,15 @@ on:
     branches:
       - main
   pull_request:
-    branches:
-      - main
   schedule:
-    - cron: '0 0 * * 1'
+    - cron: "0 0 * * 1"
 
 env:
   REGISTRY: ghcr.io
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   build:
@@ -18,12 +20,19 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        language: ['javascript']
-        node-version: [18.x, 20.x]
+        language: ["javascript"]
+        node-version: [24.x]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Run Another Release Please
+        uses: ZeroWiggliness/another-release-please-action@v0.2.2
+        with:
+          command: release,release-pr
+          token: ${{ secrets.ARP_TOKEN }}
+          target-branch: main
+          release-branches: "main,release/v*"
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
@@ -33,10 +42,14 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm install
-      - run: npm run lint
-      - run: npm test -- --coverage
-      - run: npm run build -- --no-minify
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test -- --coverage
+      - name: Build
+        run: npm run build -- --no-minify
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
       - run: npm run docker_build

@@ -2,7 +2,13 @@
 <img src="https://httpyac.github.io/favicon.png" alt="HttpYac" />
 </p>
 
-# httpYac - Yet another Rest Client
+# HttpYac (ZW edition)
+
+This edition is based on the fantastic work of the original author, [Andreas Weber](https://github.com/AnWeber). The original project is not maintained frequently, and this fork provides additional features and updates.
+
+### ZW edition updates
+
+- Added `QUERY` request method support.
 
 > httpyac CLI provides a command line interface to execute _.http and _.rest files. This can be used to quickly execute a single \*.http file, but also to execute all files in a folder. httpyac supports HTTP, Rest, GraphQL, WebSocket und gRPC Requests
 
@@ -10,20 +16,20 @@
 <a href="https://httpyac.github.io/">
 <img src="https://httpyac.github.io/httpyac_site.png" alt="HttpYac" />
 </a>
-<img src="https://raw.githubusercontent.com/AnWeber/httpyac/main/assets/cli.gif" alt="HttpYac CLI" />
+<img src="https://raw.githubusercontent.com/ZeroWiggliness/httpyac/main/assets/cli.gif" alt="HttpYac CLI" />
 </p>
 
 ## Installation
 
 ```shell
-npm install -g httpyac
+npm install -g @zerowiggliness/httpyac
 httpyac --version
 ```
 
 or using docker
 
 ```shell
-docker run -it -v ${PWD}:/data ghcr.io/anweber/httpyac:latest --version
+docker run -it -v ${PWD}:/data ghcr.io/zerowiggliness/httpyac:latest --version
 ```
 
 ## Commands
