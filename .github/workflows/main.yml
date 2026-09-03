@@ -5,7 +5,7 @@ on:
       - main
   pull_request:
   schedule:
-    - cron: '0 0 * * 1'
+    - cron: "0 0 * * 1"
 
 env:
   REGISTRY: ghcr.io
@@ -20,8 +20,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        language: ['javascript']
-        node-version: [18.x, 20.x]
+        language: ["javascript"]
+        node-version: [24.x]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout

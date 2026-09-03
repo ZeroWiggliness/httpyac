@@ -22,7 +22,7 @@ This edition is based on the fantastic work of the original author, [Andreas Web
 ## Installation
 
 ```shell
-npm install -g httpyac
+npm install -g @zerowiggliness/httpyac
 httpyac --version
 ```
 

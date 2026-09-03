@@ -5,13 +5,13 @@
     "prerelease": false,
     "includeChores": false
   },
-  "version": "v6.16.7",
+  "version": "v6.16.8",
   "versionPrefix": "v",
   "manifests": [
     {
       "path": ".",
       "type": "node",
-      "version": "6.16.7"
+      "version": "6.16.8"
     }
   ]
 }
