@@ -1,8 +1,55 @@
 version: 2
 updates:
-  - package-ecosystem: "npm"
-    directory: "/"
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "daily"
+      interval: 'daily'
+    open-pull-requests-limit: 10
+    labels:
+      - 'dependencies'
     allow:
-      - dependency-type: "production"
+      - dependency-type: 'production'
+      - dependency-type: 'development'
+    groups:
+      production-patch-updates:
+        dependency-type: 'production'
+        update-types:
+          - 'patch'
+        patterns:
+          - '*'
+      production-minor-updates:
+        dependency-type: 'production'
+        update-types:
+          - 'minor'
+        patterns:
+          - '*'
+      development-patch-updates:
+        dependency-type: 'development'
+        update-types:
+          - 'patch'
+        patterns:
+          - '*'
+      development-minor-updates:
+        dependency-type: 'development'
+        update-types:
+          - 'minor'
+        patterns:
+          - '*'
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 10
+    labels:
+      - 'dependencies'
+    groups:
+      action-patch-updates:
+        update-types:
+          - 'patch'
+        patterns:
+          - '*'
+      action-minor-updates:
+        update-types:
+          - 'minor'
+        patterns:
+          - '*'
