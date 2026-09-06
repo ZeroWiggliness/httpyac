@@ -1,6 +1,6 @@
 {
   "name": "@zerowiggliness/httpyac",
-  "displayName": "httpYac - Yet Another Client",
+  "displayName": "httpYac (ZW edition)- Yet Another Client",
   "license": "MIT",
   "publisher": "ZeroWiggliness",
   "description": "HTTP/REST CLI Client for *.http files",
@@ -89,7 +89,7 @@
     "lockfile-lint": "^5.0.1",
     "mockttp": "^4.6.2",
     "prettier": "^3.9.6",
-    "typescript": "^7.0.2"
+    "typescript": "^5.6.3"
   },
   "dependencies": {
     "@cloudamqp/amqp-client": "^4.1.1",
