@@ -4,9 +4,10 @@ import * as models from '../../../models';
 import * as utils from '../../../utils';
 import { getRequestBody } from './requestBodyHttpRegionParser';
 
-export class MultipartMixedInterceptor
-  implements HookInterceptor<[models.getHttpLineGenerator, models.ParserContext], undefined>
-{
+export class MultipartMixedInterceptor implements HookInterceptor<
+  [models.getHttpLineGenerator, models.ParserContext],
+  undefined
+> {
   get id() {
     return 'multipart/mixed';
   }

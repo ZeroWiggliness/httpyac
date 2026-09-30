@@ -67,6 +67,8 @@
     ]
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
+    "@eslint/js": "^10.0.1",
     "@types/aws4": "^1.11.6",
     "@types/encodeurl": "^1.0.3",
     "@types/jest": "^30.0.0",
@@ -79,10 +81,12 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-n": "^18.3.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-simple-import-sort": "^14.0.0",
     "husky": "^9.1.7",
     "jest": "^30.5.1",
+    "js-yaml": "^5.4.1",
     "lint-staged": "^17.5.0",
     "lockfile-lint": "^5.0.1",
     "mockttp": "^4.6.2",

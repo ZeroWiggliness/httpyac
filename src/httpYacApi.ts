@@ -12,7 +12,7 @@ import * as utils from './utils';
  * @param httpFile httpFile
  */
 export async function send(context: models.SendContext): Promise<boolean> {
-  let result = false;
+  let result: boolean;
   if (utils.isHttpRegionSendContext(context)) {
     result = await sendHttpRegion(context);
   } else if (utils.isHttpRegionsSendContext(context)) {

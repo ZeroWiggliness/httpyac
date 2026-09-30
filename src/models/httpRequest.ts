@@ -30,9 +30,7 @@ export interface HttpRequest extends Request<HttpMethod> {
 }
 
 export type HttpRequestBodyLine =
-  | string
-  | Buffer
-  | ((context: ProcessorContext) => Promise<Buffer | string | undefined>);
+  string | Buffer | ((context: ProcessorContext) => Promise<Buffer | string | undefined>);
 
 export interface RequestBodyImport {
   fileName: string;

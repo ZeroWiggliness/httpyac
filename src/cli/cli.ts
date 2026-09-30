@@ -30,7 +30,7 @@ export async function execute(rawArgs: string[]): Promise<void> {
     throw err;
   } finally {
     // needed because of async
-    // eslint-disable-next-line node/no-process-exit
+    // eslint-disable-next-line n/no-process-exit
     process.exit();
   }
 }

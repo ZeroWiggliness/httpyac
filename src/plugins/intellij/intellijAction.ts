@@ -92,7 +92,7 @@ export class IntellijAction {
         };
       } catch (err) {
         (context.scriptConsole || io.log).error(this.scriptData.fileName, err);
-        throw new Error(`error loading script ${this.scriptData.fileName}`);
+        throw Object.assign(new Error(`error loading script ${this.scriptData.fileName}`), { cause: err });
       }
     } else {
       return this.scriptData;

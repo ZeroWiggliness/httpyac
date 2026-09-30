@@ -4,9 +4,10 @@ import { fileProvider } from '../../io';
 import * as models from '../../models';
 import * as utils from '../../utils';
 
-export abstract class CodeBlockInterceptor
-  implements HookInterceptor<[models.getHttpLineGenerator, models.ParserContext], undefined>
-{
+export abstract class CodeBlockInterceptor implements HookInterceptor<
+  [models.getHttpLineGenerator, models.ParserContext],
+  undefined
+> {
   abstract get id(): string;
   constructor(
     private readonly extensions: Array<string>,
