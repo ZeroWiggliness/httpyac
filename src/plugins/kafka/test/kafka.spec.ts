@@ -283,6 +283,43 @@ content-type: application/json
       });
     });
 
+    it('should send configured default headers and header variables, but not implicit httpyac headers', async () => {
+      initFileProvider();
+      const mock = initKafkaMock();
+      const httpFile = await parseHttp(`
+{{
+  exports.messageHeaders = { 'User-Agent': 'my-agent', tenant: 'acme' };
+}}
+###
+KAFKA localhost:9092
+kafka_topic: orders
+...messageHeaders
+
+hello
+`);
+      await sendHttpFile({
+        httpFile,
+        config: { defaultHeaders: { Accept: 'application/json' } },
+      });
+      expect(mock.sent[0].messages[0].headers).toEqual({
+        Accept: 'application/json',
+        'User-Agent': 'my-agent',
+        tenant: 'acme',
+      });
+    });
+
+    it('should not send implicit httpyac headers', async () => {
+      initFileProvider();
+      const mock = initKafkaMock();
+      await sendHttp(`
+KAFKA localhost:9092
+kafka_topic: orders
+
+hello
+`);
+      expect(mock.sent[0].messages[0].headers).toBeUndefined();
+    });
+
     it('should produce to multiple topics', async () => {
       initFileProvider();
       const mock = initKafkaMock();
@@ -351,6 +388,25 @@ kafka_max_messages: 1
       const testResults = httpFile.httpRegions[0].testResults;
       expect(testResults?.length).toBe(3);
       expect(testResults?.every(obj => obj.status === TestResultStatus.SUCCESS)).toBe(true);
+    });
+
+    it('should reject invalid consume limits', async () => {
+      initFileProvider();
+      const mock = initKafkaMock([createMessage('0', 'a')]);
+      const responses = await sendHttp(`
+KAFKA localhost:9092
+kafka_topic: orders
+kafka_max_messages: -1
+
+###
+KAFKA localhost:9092
+kafka_topic: orders
+kafka_timeout: 1.5
+`);
+      expect(mock.consumers.length).toBe(0);
+      expect(responses.map(obj => obj.statusCode)).toEqual([1, 1]);
+      expect(responses[0].statusMessage).toBe('kafka_max_messages must be a positive integer (value: -1)');
+      expect(responses[1].statusMessage).toBe('kafka_timeout must be a positive integer (value: 1.5)');
     });
 
     it('should not set partition assigner for consumer group protocol', async () => {

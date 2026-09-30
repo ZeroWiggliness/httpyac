@@ -1,6 +1,5 @@
 import { userSessionStore } from '../../store';
 import * as utils from '../../utils';
-import { isKafkaRequest } from './kafkaRequest';
 import { KafkaRequestClient } from './kafkaRequestClient';
 
 export const parseKafkaLine = utils.parseRequestLineFactory({
@@ -13,9 +12,6 @@ export const parseKafkaLine = utils.parseRequestLineFactory({
   },
   modifyRequest(request) {
     request.supportsStreaming = true;
-    if (isKafkaRequest(request)) {
-      request.declaredHeaders = Object.keys(request.headers || {}).map(obj => obj.toLowerCase());
-    }
   },
   sessionStore: userSessionStore,
 });

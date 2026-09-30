@@ -66,6 +66,22 @@ function headerValueToString(value: Buffer | string): string {
   return `${value}`;
 }
 
+/**
+ * returns the header value as positive integer, or undefined if the header is not set
+ */
+export function getPositiveIntegerHeader(request: KafkaRequest, headerName: string): number | undefined {
+  const value = utils.getHeader(request.headers, headerName);
+  if (utils.isUndefined(value) || utils.isStringEmpty(value)) {
+    return undefined;
+  }
+  const stringValue = utils.toString(value)?.trim() || '';
+  const result = Number(stringValue);
+  if (!/^\d+$/u.test(stringValue) || !Number.isSafeInteger(result) || result <= 0) {
+    throw new Error(`${headerName} must be a positive integer (value: ${stringValue})`);
+  }
+  return result;
+}
+
 export function getTopics(request: KafkaRequest) {
   return utils
     .getHeaderArray(request.headers, constants.KafkaTopic)

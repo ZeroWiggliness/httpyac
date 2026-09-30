@@ -116,8 +116,8 @@ A consume request keeps the consumer running until one of these happens:
 
 | Setting | Behaviour |
 | --- | --- |
-| `kafka_max_messages: <n>` | stops after `n` messages |
-| `kafka_timeout: <ms>` | stops after the given time, also if no message was received |
+| `kafka_max_messages: <n>` | stops after `n` messages (positive integer) |
+| `kafka_timeout: <ms>` | stops after the given time (positive integer), also if no message was received |
 | `# @keepStreaming` | keeps consuming until the request is cancelled (e.g. in VS Code or with `Ctrl+C`) |
 
 If more than one is set, whichever happens first stops consuming. Without any of these the request finishes immediately and a warning is logged.
@@ -207,7 +207,7 @@ content-type: application/json
 { "id": 1 }
 ```
 
-The default headers `Accept` and `User-Agent`, which httpyac adds to all requests, are only sent if they are written in the request. Headers configured with `defaultHeaders` in the httpyac configuration are sent like request headers.
+httpyac adds `Accept: */*` and `User-Agent: httpyac` to every request, but these implicit headers are not sent to Kafka. `Accept` and `User-Agent` are only sent if you set them yourself: in the request, with a header variable (`...headers`), or with `defaultHeaders` in the httpyac configuration. All headers from header variables and `defaultHeaders` are sent like request headers.
 
 ### Reading message headers
 
@@ -310,7 +310,7 @@ Requests with the same request line share one connection while they run at the s
 
 ## Responses
 
-Every produced or consumed message is a response with `protocol` `KAFKA` and status code `0`. Errors (e.g. a broker that can't be reached, a missing `kafka_group_id` or an unsupported method) are responses with status code `1`, and the error message is the status message:
+Every produced or consumed message is a response with `protocol` `KAFKA` and status code `0`. Errors (e.g. a broker that can't be reached, a missing `kafka_group_id`, an invalid `kafka_max_messages` or an unsupported method) are responses with status code `1`, and the error message is the status message:
 
 ```http
 ?? status == 0

@@ -8,7 +8,14 @@ import { ConsumeStoppedMessage } from './kafkaConstants';
 
 const PauseSettleTime = 200;
 import { KafkaMethodContext, KafkaMethodResult } from './kafkaMethodContext';
-import { fromKafkaMessageHeaders, disconnectConsumer, getTopicPartitionOffsets, getTopics, warn } from './kafkaUtils';
+import {
+  disconnectConsumer,
+  fromKafkaMessageHeaders,
+  getPositiveIntegerHeader,
+  getTopicPartitionOffsets,
+  getTopics,
+  warn,
+} from './kafkaUtils';
 
 export async function consume({
   session,
@@ -22,8 +29,8 @@ export async function consume({
     return {};
   }
   const groupId = utils.getHeaderString(request.headers, constants.KafkaGroupId)?.trim() || `httpyac-${v4()}`;
-  const maxMessages = utils.getHeaderNumber(request.headers, constants.KafkaMaxMessages);
-  const timeout = utils.getHeaderNumber(request.headers, constants.KafkaTimeout);
+  const maxMessages = getPositiveIntegerHeader(request, constants.KafkaMaxMessages);
+  const timeout = getPositiveIntegerHeader(request, constants.KafkaTimeout);
   if (!maxMessages && !timeout && !context.httpRegion.metaData.keepStreaming) {
     warn(
       `consume without ${constants.KafkaMaxMessages}, ${constants.KafkaTimeout} or # @keepStreaming finishes immediately`
