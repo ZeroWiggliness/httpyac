@@ -9,8 +9,9 @@ This edition is based on the fantastic work of the original author, [Andreas Web
 ### ZW edition updates
 
 - Added `QUERY` request method support.
+- Added [Kafka](docs/kafka.md) support: produce, consume, commit and seek, including setting and reading Kafka message headers.
 
-> httpyac CLI provides a command line interface to execute _.http and _.rest files. This can be used to quickly execute a single \*.http file, but also to execute all files in a folder. httpyac supports HTTP, Rest, GraphQL, WebSocket und gRPC Requests
+> httpyac CLI provides a command line interface to execute _.http and _.rest files. This can be used to quickly execute a single \*.http file, but also to execute all files in a folder. httpyac supports HTTP, Rest, GraphQL, WebSocket, gRPC, MQTT, AMQP and Kafka Requests
 
 <p align="center">
 <a href="https://httpyac.github.io/">
@@ -98,6 +99,31 @@ Authorization: Basic {{user}} {{password}}
 ```
 
 more [examples](https://httpyac.github.io/guide/examples) and [guide](https://httpyac.github.io/guide/)
+
+### Kafka
+
+```http
+KAFKA localhost:9092
+kafka_topic: orders
+kafka_key: order-1
+traceId: {{$uuid}}
+content-type: application/json
+
+{ "id": 1 }
+
+###
+KAFKA localhost:9092
+kafka_topic: orders
+kafka_group_id: order-check
+kafka_from_beginning: true
+kafka_max_messages: 1
+kafka_timeout: 10000
+
+?? header traceId exists
+?? body id == 1
+```
+
+Headers without the `kafka_` prefix are sent as Kafka message headers, and consumed message headers are available as response headers. See the [Kafka guide](docs/kafka.md) for all methods and options.
 
 ## License
 

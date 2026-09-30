@@ -10,6 +10,7 @@ pluginStore.http = plugins.registerHttpPlugin;
 pluginStore.intellij = plugins.registerIntellijPlugin;
 pluginStore.injection = plugins.registerInjectionPlugin;
 pluginStore.javascript = plugins.registerJavascriptPlugin;
+pluginStore.kafka = plugins.registerKafkaPlugin;
 pluginStore.mqtt = plugins.registerMqttPlugin;
 pluginStore.oauth2 = plugins.registerOAuth2Plugin;
 pluginStore.rabbitMQ = plugins.registerAmqpPlugin;
