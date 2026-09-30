@@ -14,7 +14,7 @@ export class IntellijHttpClient implements HttpClient {
     testFactory(this.context)(testName, func);
   }
   assert(condition: boolean, message?: string): void {
-    ok(condition, message);
+    ok(condition, message ?? '');
   }
   log(text: string): void {
     if (this.context.scriptConsole) {

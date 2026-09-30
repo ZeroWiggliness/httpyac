@@ -4,10 +4,9 @@
 		"target": "es2020",
 		"outDir": "dist",
 		"lib": [
-			"es2020",
+			"es2022",
 			"DOM"
 		],
-		"baseUrl": ".",
 		"paths": {
 			"@/*": [
 				"./src/*"

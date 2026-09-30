@@ -15,7 +15,7 @@ plugins:
   - 'simple-import-sort'
 extends:
   - eslint:recommended
-  - plugin:node/recommended
+  - plugin:n/recommended
   - plugin:@typescript-eslint/recommended
   - prettier
 ignorePatterns:
@@ -86,9 +86,9 @@ rules:
   no-shadow: 'off'
   no-throw-literal: 'error'
   no-undef: ['error', { typeof: true }]
-  node/no-unsupported-features/es-syntax: 'off'
-  node/no-unsupported-features/node-builtins: 'off'
-  node/no-unpublished-import: 'off'
+  n/no-unsupported-features/es-syntax: 'off'
+  n/no-unsupported-features/node-builtins: 'off'
+  n/no-unpublished-import: 'off'
   no-undef-init: 'error'
   no-undefined: 'off'
   no-underscore-dangle: ['error', { allowAfterThis: true }]
@@ -105,14 +105,14 @@ rules:
   no-useless-rename: 'error'
   no-useless-return: 'error'
   no-var: 'error'
-  node/callback-return: ['error', ['cb', 'callback', 'next']]
-  node/handle-callback-err: ['error', 'err']
-  node/no-deprecated-api: 'error'
-  node/no-mixed-requires: 'error'
-  node/no-missing-import: 'off'
-  node/no-new-require: 'error'
-  node/no-path-concat: 'error'
-  node/no-process-exit: 'error'
+  n/callback-return: ['error', ['cb', 'callback', 'next']]
+  n/handle-callback-err: ['error', 'err']
+  n/no-deprecated-api: 'error'
+  n/no-mixed-requires: 'error'
+  n/no-missing-import: 'off'
+  n/no-new-require: 'error'
+  n/no-path-concat: 'error'
+  n/no-process-exit: 'error'
   object-shorthand: 'error'
   operator-assignment: 'error'
   prefer-arrow-callback: 'error'
