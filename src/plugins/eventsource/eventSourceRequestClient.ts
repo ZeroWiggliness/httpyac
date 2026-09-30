@@ -1,9 +1,15 @@
-import EventSource from 'eventsource';
+import { EventSource, type FetchLike } from 'eventsource';
+import * as http from 'http';
+import * as https from 'https';
+import { Readable } from 'stream';
 
 import { log } from '../../io';
 import * as models from '../../models';
 import * as utils from '../../utils';
+import { createProxyAgents } from '../http/gotUtils';
 import { EventSourceRequest, isEventSourceRequest } from './eventSourceRequest';
+
+const maxRedirects = 5;
 
 export class EventSourceRequestClient extends models.AbstractRequestClient<EventSource | undefined> {
   private responseTemplate: Partial<models.HttpResponse> & { protocol: string } = {
@@ -28,7 +34,7 @@ export class EventSourceRequestClient extends models.AbstractRequestClient<Event
 
   async connect(): Promise<EventSource | undefined> {
     if (isEventSourceRequest(this.request)) {
-      this._nativeClient = new EventSource(this.request.url || '', this.getClientOptions(this.request));
+      this._nativeClient = new EventSource(this.request.url || '', { fetch: this.createFetch(this.request) });
       this.registerEvents(this._nativeClient, this.request);
     }
     return this._nativeClient;
@@ -43,19 +49,57 @@ export class EventSourceRequestClient extends models.AbstractRequestClient<Event
     this.onDisconnect();
   }
 
-  private getClientOptions(request: EventSourceRequest): EventSource.EventSourceInitDict {
-    const options: EventSource.EventSourceInitDict = {};
-    const headers = { ...request.headers };
+  // eventsource v5 has no headers/proxy/TLS options, so they are applied through a custom fetch
+  private createFetch(request: EventSourceRequest): FetchLike {
+    const headers: Record<string, string> = { ...request.headers };
     utils.deleteHeader(headers, 'event');
-    options.headers = headers;
+    const agents = request.proxy ? createProxyAgents(request.proxy) : undefined;
 
-    if (request.noRejectUnauthorized) {
-      options.rejectUnauthorized = false;
-    }
-    if (request.proxy) {
-      options.proxy = request.proxy;
-    }
-    return options;
+    const doFetch = (url: string | URL, init: Parameters<FetchLike>[1], redirects: number): ReturnType<FetchLike> =>
+      new Promise((resolve, reject) => {
+        const target = new URL(url);
+        const isHttps = target.protocol === 'https:';
+        const req = (isHttps ? https : http).request(
+          target,
+          {
+            headers: { ...headers, ...init.headers },
+            agent: isHttps ? agents?.https : agents?.http,
+            rejectUnauthorized: request.noRejectUnauthorized ? false : undefined,
+            signal: init.signal,
+          },
+          res => {
+            const location = res.headers.location;
+            const status = res.statusCode || 0;
+            if (location && [301, 302, 303, 307, 308].includes(status) && init.redirect === 'follow') {
+              res.resume();
+              if (redirects >= maxRedirects) {
+                reject(new Error(`Too many redirects (${maxRedirects})`));
+                return;
+              }
+              doFetch(new URL(location, target), init, redirects + 1).then(
+                response => resolve({ ...response, redirected: true }),
+                reject
+              );
+              return;
+            }
+            resolve({
+              body: Readable.toWeb(res) as ReadableStream,
+              url: target.href,
+              status,
+              redirected: false,
+              headers: {
+                get: name => {
+                  const value = res.headers[name.toLowerCase()];
+                  return Array.isArray(value) ? value.join(', ') : (value ?? null);
+                },
+              },
+            });
+          }
+        );
+        req.on('error', reject);
+        req.end();
+      });
+    return (url, init) => doFetch(url, init, 0);
   }
 
   private registerEvents(client: EventSource, request: EventSourceRequest) {
@@ -65,7 +109,7 @@ export class EventSourceRequestClient extends models.AbstractRequestClient<Event
       client.addEventListener(event, message => {
         this.onMessage('message', {
           ...this.responseTemplate,
-          statusCode: message.status || 200,
+          statusCode: 200,
           name: `EventSource (${this.request.url})`,
           request: this.request,
           body: message.data,

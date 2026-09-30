@@ -64,20 +64,17 @@ export function getClientOptions(
   return options;
 }
 
+export function createProxyAgents(proxy: string) {
+  if (proxy.startsWith('socks://')) {
+    const socksProxy = new SocksProxyAgent(proxy);
+    return { http: socksProxy, https: socksProxy };
+  }
+  return { http: new HttpProxyAgent(proxy), https: new HttpsProxyAgent(proxy) };
+}
+
 function initProxy(options: OptionsOfUnknownResponseBody, proxy: string | undefined) {
   if (proxy) {
-    if (proxy.startsWith('socks://')) {
-      const socksProxy = new SocksProxyAgent(proxy);
-      options.agent = {
-        http: socksProxy,
-        https: socksProxy,
-      };
-    } else {
-      options.agent = {
-        http: new HttpProxyAgent(proxy),
-        https: new HttpsProxyAgent(proxy),
-      };
-    }
+    options.agent = createProxyAgents(proxy);
   }
 }
 function ensureStringHeaders(headers?: Record<string, unknown>) {
