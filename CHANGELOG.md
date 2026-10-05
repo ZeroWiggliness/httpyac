@@ -1,3 +1,68 @@
+## v6.17.0
+
+### Features
+* *(#796)* add support for better Buffer JSON stringify ([10d03fd](https://github.com/ZeroWiggliness/httpyac/commit/10d03fdf478d3a172835eb58d0dd0dca2acb2cde))
+* add https_proxy support ([cdd78e2](https://github.com/ZeroWiggliness/httpyac/commit/cdd78e24544105ca48c4e84bc9df684c1f1d24f3))
+* Add Kafka protocol support ([#11](https://github.com/ZeroWiggliness/httpyac/issues/11)) ([f1e297e](https://github.com/ZeroWiggliness/httpyac/commit/f1e297e358388869470ca075f80a956f54c65bef))
+* add QUERY method support and related tests ([fdc9b9b](https://github.com/ZeroWiggliness/httpyac/commit/fdc9b9bdbe3b914fb52c532df448749aba06cb0c))
+* add some logging to $auth replacement (Anweber/vscode-httpyac[#309](https://github.com/ZeroWiggliness/httpyac/issues/309)) ([d1628a5](https://github.com/ZeroWiggliness/httpyac/commit/d1628a5eef9f2a6f8468f5bb9b597b705cca46f0))
+* changed behaviour from `@ref` (AnWeber/vscode-httpyac[#336](https://github.com/ZeroWiggliness/httpyac/issues/336)) ([7339667](https://github.com/ZeroWiggliness/httpyac/commit/733966796efa95bbf9c6a7dac5adf4aa959b036b))
+* ignore all xml parse exceptions with undefined and log statement ([#821](https://github.com/ZeroWiggliness/httpyac/issues/821)) ([e7c272e](https://github.com/ZeroWiggliness/httpyac/commit/e7c272e76d4415342b9ceebd382caf8b821ae34b))
+* logger supports call to parent logger (AnWeber/vscode-httpyac[#347](https://github.com/ZeroWiggliness/httpyac/issues/347)) ([3174b19](https://github.com/ZeroWiggliness/httpyac/commit/3174b1945a9717d1f761916e70745e8fc1cdf105))
+* prefix output with name as fallback for title (AnWeber/vscode-httpyac[#318](https://github.com/ZeroWiggliness/httpyac/issues/318)) ([620ef48](https://github.com/ZeroWiggliness/httpyac/commit/620ef487008fdf7a4485705a5ae514eba368254c))
+* remove `unexpected-response` listener to support abortHandshake in ws ([#816](https://github.com/ZeroWiggliness/httpyac/issues/816)) ([5827f89](https://github.com/ZeroWiggliness/httpyac/commit/5827f89f2af94f295c87509476078c2e69669579))
+* remove file output if assert ?? is used (AnWeber/vscode-httpyac[#335](https://github.com/ZeroWiggliness/httpyac/issues/335)) ([0fdfe16](https://github.com/ZeroWiggliness/httpyac/commit/0fdfe162dfeb0dfe52586c1590c70c0245813fae))
+* remove types of tough-cookie ([e21452d](https://github.com/ZeroWiggliness/httpyac/commit/e21452d3519deedaa7f0f7f72e309df77eb481e6))
+* revert testUtils test change ([6e24065](https://github.com/ZeroWiggliness/httpyac/commit/6e24065b8ff1faf2e43937f386a5e7677ce7d8c4))
+* support `http_proxy` environment variable ([a66ac9f](https://github.com/ZeroWiggliness/httpyac/commit/a66ac9f530178f04e3c9bf8fa13f18384de26e89))
+* support $env intellij environment variables access ([#811](https://github.com/ZeroWiggliness/httpyac/issues/811)) ([96d311d](https://github.com/ZeroWiggliness/httpyac/commit/96d311dad8d2395785455064fec9e6d56f930802))
+* support client certificates on OAuth2 Requests ([#802](https://github.com/ZeroWiggliness/httpyac/issues/802)) ([b39a474](https://github.com/ZeroWiggliness/httpyac/commit/b39a4742e9a8d65191e8c9692a1b0e95b1888139))
+* update changelog and add some logs ([1b9d06f](https://github.com/ZeroWiggliness/httpyac/commit/1b9d06fbcba32c4573857b18b21cfe4d0785cbfe))
+* Update cloudamqp/amqp-client to v3.4.1 to make AMQP work again. ([22faaee](https://github.com/ZeroWiggliness/httpyac/commit/22faaee1baa7e67066c7c13d8600a0f42ae82e6d))
+* update inquirer ([322f54c](https://github.com/ZeroWiggliness/httpyac/commit/322f54c2475c7767b52ed39e50ff00f221372526))
+* update Intellij d.ts Stubs and add Window.btoa/atob ([#839](https://github.com/ZeroWiggliness/httpyac/issues/839)) ([3f12e64](https://github.com/ZeroWiggliness/httpyac/commit/3f12e64fcef9fab162f8d35dfa2068f3f1f2cfe2))
+* update uuid ([be8f0bf](https://github.com/ZeroWiggliness/httpyac/commit/be8f0bfd41510852ac2b0292ec7064aaa4d37438))
+* update uuid ([b122103](https://github.com/ZeroWiggliness/httpyac/commit/b122103dddbee7b48eb414c363bfd1ccc174446a))
+* update version ([498fa39](https://github.com/ZeroWiggliness/httpyac/commit/498fa39ee7efd479379ad631a76d49e83d88f99b))
+* update xmldom ([f63bbd0](https://github.com/ZeroWiggliness/httpyac/commit/f63bbd0ab9ab148287a3d158d42c458e9053824b))
+
+### Bug Fixes
+* *(#813)* update tough-cookie to remove punycode deprecation warning ([e457ab5](https://github.com/ZeroWiggliness/httpyac/commit/e457ab536db6b8feb8876dd9c3ae1721fa3d33a0))
+* *(#821)* handle dom parser exception for invalid xml ([c34481c](https://github.com/ZeroWiggliness/httpyac/commit/c34481ce477a75fadf282dae32587e1de89d04e6))
+* *(AnWeber/vscode-httpyac#323)* add skipped test result on user cancellation ([7905f2d](https://github.com/ZeroWiggliness/httpyac/commit/7905f2d316ab66db6f93480973775d6834e479a9))
+* *(AnWeber/vscode-httpyac#338)* do not log stack on assertions error ([e8851dc](https://github.com/ZeroWiggliness/httpyac/commit/e8851dc54736f8bd830954063cd8c64ff5a37058))
+* *(AnWeber/vscode-httpyac#338)* do not log stack on assertions error ([55e0867](https://github.com/ZeroWiggliness/httpyac/commit/55e08676c2462292a4b984319eef2495fddd8665))
+* add skip test result if `@ref` is skipped (AnWeber/vscode-httpyac[#297](https://github.com/ZeroWiggliness/httpyac/issues/297)) ([0b562f2](https://github.com/ZeroWiggliness/httpyac/commit/0b562f24d19cbad226c46c1c44bc3a200b1d5449))
+* allow proxy for oauth2 using `oauth2_proxy` ([#841](https://github.com/ZeroWiggliness/httpyac/issues/841)) ([1889adf](https://github.com/ZeroWiggliness/httpyac/commit/1889adff93d66beb0fb543915c92bad5e8903bbf))
+* change log message to warn (AnWeber/vscode-httpyac[#357](https://github.com/ZeroWiggliness/httpyac/issues/357)) ([7355702](https://github.com/ZeroWiggliness/httpyac/commit/7355702b78d5985d0f122355d83c6b8924a820f8))
+* ensure correct order if cli args are used ([#773](https://github.com/ZeroWiggliness/httpyac/issues/773)) ([f7c692b](https://github.com/ZeroWiggliness/httpyac/commit/f7c692bf5eca80d3cc2df392099f6fb703d707a9))
+* errored or skipped referenced httpregion also skips current http region ([#842](https://github.com/ZeroWiggliness/httpyac/issues/842), AnWeber/vscode-httpyac[#339](https://github.com/ZeroWiggliness/httpyac/issues/339)) ([d9e932e](https://github.com/ZeroWiggliness/httpyac/commit/d9e932e26f5afa04ab78790c6cc07d05cd519340))
+* failed tests in reference skips request (AnWeber/vscode-httpyac[#335](https://github.com/ZeroWiggliness/httpyac/issues/335)) ([443b84a](https://github.com/ZeroWiggliness/httpyac/commit/443b84a2d48a67d703d174ad13e68de45d8f1bab))
+* ignore whitespace before & in formurlencoded ([#699](https://github.com/ZeroWiggliness/httpyac/issues/699)) ([466f92d](https://github.com/ZeroWiggliness/httpyac/commit/466f92d36778612bc482a03ddcd699751984c7d3))
+* junit testcase failure message ([89a439d](https://github.com/ZeroWiggliness/httpyac/commit/89a439dfd99841f4d6874472b8782261b5430c06))
+* logic issue if testResults is only success ([69609d2](https://github.com/ZeroWiggliness/httpyac/commit/69609d2c11e1fcb81d66f59e774b520d4d534dd2))
+* named response is only set, if all testResults are valid ([c7d9f78](https://github.com/ZeroWiggliness/httpyac/commit/c7d9f7857ca842e9b43144228d405cf232cbf862))
+* remove xpath property ([c0c16d9](https://github.com/ZeroWiggliness/httpyac/commit/c0c16d9451925bfa4e6bdab52ceaa197077699b1))
+* return non-zero exit code for errored test ([f2663e5](https://github.com/ZeroWiggliness/httpyac/commit/f2663e50202adb54b6f5c705b58572de12b421ce))
+* state parameter validation ([4807e18](https://github.com/ZeroWiggliness/httpyac/commit/4807e181c22208bf29f44e386c9c8fe9229348c2))
+* test without signature ([460db94](https://github.com/ZeroWiggliness/httpyac/commit/460db941799c09daa7ca66a582decc68aaae4f22))
+* tsc error after update ([1526d8f](https://github.com/ZeroWiggliness/httpyac/commit/1526d8fea6d71160ed8cf3a11d9248b1275cc841))
+* typo in environment ([#767](https://github.com/ZeroWiggliness/httpyac/issues/767)) ([42e3fcd](https://github.com/ZeroWiggliness/httpyac/commit/42e3fcdc45659d0db0bae7efc63cf7ddbf857ca0))
+* typo in summary ([#762](https://github.com/ZeroWiggliness/httpyac/issues/762)) ([03543ec](https://github.com/ZeroWiggliness/httpyac/commit/03543ec716d6b2b35d62a9d38d3a2704dcad9bdd))
+* use different exit codes for errored and failed tests ([4e3b601](https://github.com/ZeroWiggliness/httpyac/commit/4e3b601651d044e53caef77e7a80df2bc4d3c61d))
+* use only valid mimetype in parseFromString ([b8639c0](https://github.com/ZeroWiggliness/httpyac/commit/b8639c014b88418d3ab367ae4d4df6664e1cbddf))
+* use regex in test for date match ([9e93c80](https://github.com/ZeroWiggliness/httpyac/commit/9e93c806d2f7640e83b130cdb9abe3cbce1981f2))
+
+### Documentation
+* add example to variables to cli ([#767](https://github.com/ZeroWiggliness/httpyac/issues/767)) ([87d71c8](https://github.com/ZeroWiggliness/httpyac/commit/87d71c8a756962adcb98e8d34fdb5025e6194c83))
+* update changelog ([5365c80](https://github.com/ZeroWiggliness/httpyac/commit/5365c8072f9182680456332514f600ef04e0248c))
+* update changelog ([8cbc1ea](https://github.com/ZeroWiggliness/httpyac/commit/8cbc1ea01d3c5a2049d9df1295bfde76ff9073f9))
+* update changelog ([37ddfff](https://github.com/ZeroWiggliness/httpyac/commit/37ddfff3df9e812ab19fa64b1affe939d3969912))
+* update changelog ([dd913bd](https://github.com/ZeroWiggliness/httpyac/commit/dd913bd5e8971f5974355d859531af3445e4cc5f))
+
+---
+_Generated on 2026-10-05_
+
 
 ## [Unreleased]
 
