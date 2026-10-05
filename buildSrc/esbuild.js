@@ -23,6 +23,8 @@ async function build() {
     sourcemap: true,
     target: 'node14',
     plugins: noExternal ? [] : [makeAllPackagesExternalPlugin],
+    // optional native dependency, which can not be bundled
+    external: ['@confluentinc/kafka-javascript'],
   };
 
   if (isWatchBuild) {

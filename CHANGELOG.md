@@ -1,3 +1,12 @@
+
+## [Unreleased]
+
+### Features
+- Kafka support (`KAFKA`, `kafka://` and `kafkas://` requests) with the methods `produce`, `consume`, `commit` and `seek`, using the optional dependency `@confluentinc/kafka-javascript` (see [Kafka guide](docs/kafka.md))
+- set Kafka message headers with request headers and read consumed message headers as response headers
+
+### Chore
+- removed unused dependency `kafkajs`
 
 ## [6.16.7] (2025-03-30)
 

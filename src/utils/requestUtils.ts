@@ -208,10 +208,10 @@ export function requestLoggerFactory(
     if (httpRegion?.metaData?.title || httpRegion?.metaData?.name || httpRegion?.metaData?.description) {
       const title = httpRegion?.metaData?.title || httpRegion?.metaData?.name;
       if (title) {
-        log(chalk`{gray === ${title} ===}`);
+        log(chalk.gray(`=== ${title} ===`));
       }
       if (httpRegion?.metaData?.description) {
-        log(chalk`{gray ${httpRegion.metaData.description}}`);
+        log(chalk.gray(httpRegion.metaData.description));
       }
       log('');
     }
@@ -219,7 +219,7 @@ export function requestLoggerFactory(
     const request = response?.request || httpRegion?.request;
     if (request) {
       if (opt.useShort) {
-        log(chalk`{yellow ${request?.method || 'GET'}} {gray ${request?.url || '?'}}`);
+        log(`${chalk.yellow(request?.method || 'GET')} ${chalk.gray(request?.url || '?')}`);
       } else if (opt.requestOutput) {
         logRequest(request, {
           headers: opt.requestHeaders,
@@ -231,9 +231,9 @@ export function requestLoggerFactory(
     if (response) {
       if (opt.useShort) {
         log(
-          chalk`{gray =>} {cyan.bold ${response.statusCode}} ({yellow ${response.timings?.total || '?'} ms}, {yellow ${
-            response.meta?.size || '?'
-          }})`
+          `${chalk.gray('=>')} ${chalk.cyan.bold(response.statusCode)} (${chalk.yellow(
+            `${response.timings?.total || '?'} ms`
+          )}, ${chalk.yellow(response.meta?.size || '?')})`
         );
       } else {
         const result: Array<string> = [];
@@ -269,12 +269,12 @@ export function requestLoggerFactory(
 
     if (httpRegion?.testResults) {
       for (const testResult of httpRegion.testResults) {
-        let message = chalk`{green ${models.testSymbols.ok} ${testResult.message || 'Test passed'}}`;
+        let message = chalk.green(`${models.testSymbols.ok} ${testResult.message || 'Test passed'}`);
         if (testResult.status === models.TestResultStatus.SKIPPED) {
-          message = chalk`{yellow ${models.testSymbols.skipped} Test skipped}`;
+          message = chalk.yellow(`${models.testSymbols.skipped} Test skipped`);
         } else if ([models.TestResultStatus.ERROR, models.TestResultStatus.FAILED].includes(testResult.status)) {
           const errorMessage = testResult.error ? ` (${testResult.error?.displayMessage})` : '';
-          message = chalk`{red ${models.testSymbols.error} ${testResult.message || 'Test failed'}${errorMessage}}`;
+          message = chalk.red(`${models.testSymbols.error} ${testResult.message || 'Test failed'}${errorMessage}`);
 
           if (
             !options?.useShort &&
@@ -313,20 +313,20 @@ function logRequest(
   }
 ) {
   const result: Array<string> = [];
-  result.push(chalk`{cyan.bold ${request.method} ${request.url}}`);
+  result.push(chalk.cyan.bold(`${request.method} ${request.url}`));
   if (request.headers && options.headers) {
     result.push(
       ...Object.entries(request.headers)
-        .map(([key, value]) => chalk`{yellow ${key}}: ${value}`)
+        .map(([key, value]) => `${chalk.yellow(key)}: ${value}`)
         .sort()
     );
   }
   if (isHttpRequest(request) && (request.options?.https?.certificate || request.options?.https?.pfx)) {
-    result.push(chalk`{yellow client-cert}: true`);
+    result.push(`${chalk.yellow('client-cert')}: true`);
   }
   if (isString(request.body) && options.bodyLength !== undefined) {
     result.push('');
-    result.push(chalk`{gray ${getPartOfBody(request.body, options.bodyLength)}}`);
+    result.push(chalk.gray(getPartOfBody(request.body, options.bodyLength)));
   }
   return result;
 }
@@ -334,15 +334,15 @@ function logRequest(
 function logResponseHeader(response: models.HttpResponse) {
   const result: Array<string> = [];
   result.push(
-    chalk`{cyan.bold ${response.protocol}} {cyan.bold ${response.statusCode}} {bold ${
+    `${chalk.cyan.bold(response.protocol)} ${chalk.cyan.bold(response.statusCode)} ${chalk.bold(
       response.statusMessage ? ` - ${response.statusMessage}` : ''
-    }}`
+    )}`
   );
   if (response.headers) {
     result.push(
       ...Object.entries(response.headers)
         .filter(([key]) => !key.startsWith(':'))
-        .map(([key, value]) => chalk`{yellow ${key}}: ${value}`)
+        .map(([key, value]) => `${chalk.yellow(key)}: ${value}`)
         .sort()
     );
   }
@@ -353,11 +353,11 @@ function logTimings(response: models.HttpResponse) {
   const result: Array<string> = [];
 
   if (response.timings) {
-    result.push(chalk`{cyan.bold Timings}:`);
+    result.push(`${chalk.cyan.bold('Timings')}:`);
     result.push(
       ...Object.entries(response.timings)
         .filter(([, value]) => !!value)
-        .map(([key, value]) => chalk`{yellow ${key}}: ${value}`)
+        .map(([key, value]) => `${chalk.yellow(key)}: ${value}`)
         .sort()
     );
   }

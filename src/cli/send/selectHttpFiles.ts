@@ -91,7 +91,7 @@ async function selectManualHttpFiles(httpFiles: Array<models.HttpFile>): Promise
   const inquirer = await import('inquirer');
   const answer = await inquirer.default.prompt([
     {
-      type: 'list',
+      type: 'select',
       name: 'region',
       message: 'please choose which region to use',
       choices: Object.entries(httpRegionMap).map(([key]) => key),
