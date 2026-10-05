@@ -132,5 +132,8 @@
   },
   "volta": {
     "node": "24.0.0"
+  },
+  "allowScripts": {
+    "@confluentinc/kafka-javascript@1.10.1": true
   }
 }
