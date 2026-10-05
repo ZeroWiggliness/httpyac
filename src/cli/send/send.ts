@@ -98,19 +98,19 @@ function reportOutput(context: Omit<models.HttpFileSendContext, 'httpFile'>, opt
 
     const requestCounts: Array<string> = [];
     if (cliJsonOutput.summary.successRequests > 0) {
-      requestCounts.push(chalk`{green ${cliJsonOutput.summary.successRequests} succeeded}`);
+      requestCounts.push(chalk.green(`${cliJsonOutput.summary.successRequests} succeeded`));
     }
     if (cliJsonOutput.summary.failedRequests > 0) {
-      requestCounts.push(chalk`{red ${cliJsonOutput.summary.failedRequests} failed}`);
+      requestCounts.push(chalk.red(`${cliJsonOutput.summary.failedRequests} failed`));
     }
     if (cliJsonOutput.summary.erroredRequests > 0) {
-      requestCounts.push(chalk`{red ${cliJsonOutput.summary.erroredRequests} errored}`);
+      requestCounts.push(chalk.red(`${cliJsonOutput.summary.erroredRequests} errored`));
     }
     if (cliJsonOutput.summary.skippedRequests > 0) {
-      requestCounts.push(chalk`{yellow ${cliJsonOutput.summary.skippedRequests} skipped}`);
+      requestCounts.push(chalk.yellow(`${cliJsonOutput.summary.skippedRequests} skipped`));
     }
     context.scriptConsole.info(
-      chalk`{bold ${cliJsonOutput.summary.totalRequests}} requests processed (${requestCounts.join(', ')})`
+      `${chalk.bold(cliJsonOutput.summary.totalRequests)} requests processed (${requestCounts.join(', ')})`
     );
   }
 }
@@ -127,6 +127,7 @@ export function convertCliOptionsToContext(cliOptions: SendOptions) {
     config: {
       log: {
         level: getLogLevel(cliOptions),
+        ...(cliOptions.color === false ? { supportAnsiColors: false } : {}),
       },
       request: {
         timeout: cliOptions.timeout,

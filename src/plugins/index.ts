@@ -8,6 +8,7 @@ export * from './http';
 export * from './injection';
 export * from './intellij';
 export * from './javascript';
+export * from './kafka';
 export * from './mqtt';
 export * from './oauth2';
 export * from './amqp';

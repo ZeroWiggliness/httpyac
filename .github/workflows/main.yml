@@ -32,7 +32,7 @@ jobs:
           target-branch: main
           release-branches: "main,release/v*"
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           config-file: ./.github/codeql-config.yml
@@ -49,5 +49,5 @@ jobs:
       - name: Build
         run: npm run build -- --no-minify
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v4
       - run: npm run docker_build

@@ -121,7 +121,7 @@ async function initUserInteractionProvider() {
   userInteractionProvider.showListPrompt = async function showListPrompt(message: string, values: string[]) {
     const answer = await inquirer.prompt([
       {
-        type: 'list',
+        type: 'select',
         name: 'placeholder',
         message,
         choices: values,
