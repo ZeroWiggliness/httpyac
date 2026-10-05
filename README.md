@@ -87,6 +87,8 @@ Options:
   -h, --help                display help for command
 ```
 
+CLI output uses terminal colors when supported. Use `--no-color` for plain-text output.
+
 ## Example
 
 ```http
