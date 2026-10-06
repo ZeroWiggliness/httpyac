@@ -10,6 +10,7 @@ This edition is based on the fantastic work of the original author, [Andreas Web
 
 - Added `QUERY` request method support.
 - Added [Kafka](docs/kafka.md) support: produce, consume, commit and seek, including setting and reading Kafka message headers.
+- Added [file-matching assertions](docs/file-matching.md) for comparing response content with text or JSON files.
 
 > httpyac CLI provides a command line interface to execute _.http and _.rest files. This can be used to quickly execute a single \*.http file, but also to execute all files in a folder. httpyac supports HTTP, Rest, GraphQL, WebSocket, gRPC, MQTT, AMQP and Kafka Requests
 
@@ -126,6 +127,18 @@ kafka_timeout: 10000
 ```
 
 Headers without the `kafka_` prefix are sent as Kafka message headers, and consumed message headers are available as response headers. See the [Kafka guide](docs/kafka.md) for all methods and options.
+
+### File matching assertions
+
+Compare a response body or selected value with an expected file:
+
+```http
+GET https://httpbin.org/json
+
+?? body matchesJsonFile ./expected/response.json
+```
+
+Use `matchesFile` for exact text comparison. See the [file-matching guide](docs/file-matching.md) for options and examples.
 
 ## License
 
