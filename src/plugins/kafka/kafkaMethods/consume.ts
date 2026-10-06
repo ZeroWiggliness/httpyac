@@ -1,21 +1,20 @@
 import { v4 } from 'uuid';
 
-import * as io from '../../../io';
 import * as utils from '../../../utils';
-import { KafkaEachMessagePayload } from '../kafkaTypes';
+import { KafkaActiveConsumer, KafkaEachMessagePayload, KafkaTopicPartitionOffset } from '../kafkaTypes';
 import * as constants from './kafkaConstants';
-import { ConsumeStoppedMessage } from './kafkaConstants';
-
-const PauseSettleTime = 200;
 import { KafkaMethodContext, KafkaMethodResult } from './kafkaMethodContext';
 import {
-  disconnectConsumer,
+  errorToHttpResponse,
   fromKafkaMessageHeaders,
   getPositiveIntegerHeader,
   getTopicPartitionOffsets,
   getTopics,
   warn,
 } from './kafkaUtils';
+
+const PauseSettleTime = 200;
+const DefaultAutoCommitInterval = 5000;
 
 export async function consume({
   session,
@@ -37,117 +36,173 @@ export async function consume({
     );
   }
 
-  const kafkaJS: Record<string, unknown> = {
+  const autoCommit = utils.getHeaderBoolean(request.headers, constants.KafkaAutoCommit, true);
+  const requestedAutoCommitInterval = utils.getHeaderNumber(request.headers, constants.KafkaAutoCommitInterval);
+  if (!utils.isUndefined(requestedAutoCommitInterval) && requestedAutoCommitInterval < 100) {
+    throw new Error(`${constants.KafkaAutoCommitInterval} must be at least 100ms for @platformatic/kafka`);
+  }
+  const autoCommitInterval = requestedAutoCommitInterval || DefaultAutoCommitInterval;
+  const offsets = getTopicPartitionOffsets(request);
+  const fromBeginning = utils.getHeaderBoolean(request.headers, constants.KafkaFromBeginning, false);
+  const consumerOptions: Record<string, unknown> = {
+    ...session.config,
     groupId,
-    fromBeginning: utils.getHeaderBoolean(request.headers, constants.KafkaFromBeginning, false),
-    autoCommit: utils.getHeaderBoolean(request.headers, constants.KafkaAutoCommit, true),
+    autocommit: false,
   };
-  const autoCommitInterval = utils.getHeaderNumber(request.headers, constants.KafkaAutoCommitInterval);
-  if (!utils.isUndefined(autoCommitInterval)) {
-    kafkaJS.autoCommitInterval = autoCommitInterval;
-  }
-  const groupProtocol = utils
-    .getHeaderString(request.headers, `${constants.KafkaConfigPrefix}group.protocol`)
-    ?.trim()
-    .toLowerCase();
+  const partitionAssignmentStrategy = consumerOptions.partitionAssignmentStrategy;
+  delete consumerOptions.partitionAssignmentStrategy;
   if (
-    !utils.getHeader(request.headers, `${constants.KafkaConfigPrefix}partition.assignment.strategy`) &&
-    (!groupProtocol || groupProtocol === 'classic')
+    partitionAssignmentStrategy === undefined &&
+    consumerOptions.groupProtocol !== 'consumer' &&
+    typeof session.kafka.cooperativeStickyAssigner === 'function'
   ) {
-    // an eager rebalance during disconnect shortly after the assignment can hang the consumer disconnect
-    kafkaJS.partitionAssigners = ['cooperative-sticky'];
+    consumerOptions.partitionAssigner = session.kafka.cooperativeStickyAssigner;
+  } else if (partitionAssignmentStrategy === 'cooperative-sticky') {
+    consumerOptions.partitionAssigner = session.kafka.cooperativeStickyAssigner;
+  } else if (partitionAssignmentStrategy === 'roundrobin') {
+    consumerOptions.partitionAssigner = session.kafka.roundRobinAssigner;
   }
-  const consumer = session.kafka.consumer({ kafkaJS });
-  await consumer.connect();
-  session.consumers.set(groupId, consumer);
 
+  const consumer = new session.kafka.Consumer(consumerOptions);
   let stopped = false;
   let timer: NodeJS.Timeout | undefined;
+  let autoCommitTimer: NodeJS.Timeout | undefined;
   let messageCount = 0;
+  let endedWithError = false;
   let resolveCompleted: () => void = () => undefined;
   const completed = new Promise<void>(resolve => {
     resolveCompleted = resolve;
   });
 
-  let paused = false;
-  const pauseConsumer = () => {
-    if (paused) {
-      return;
-    }
-    paused = true;
-    try {
-      // pause seeks back to the last processed message, so skipped messages are not committed
-      consumer.pause(topics.map(topic => ({ topic })));
-    } catch (err) {
-      io.log.debug('kafka consumer pause failed', err);
-    }
-  };
-
-  const stop = async () => {
-    if (stopped) {
-      return;
-    }
-    stopped = true;
-    pauseConsumer();
-    if (timer) {
-      clearTimeout(timer);
-    }
-    if (messageCount === 0) {
-      onMessage('consume', {
-        protocol: 'KAFKA',
-        name: `KAFKA consume ${topics.join(', ')}`,
-        statusCode: 0,
-        statusMessage: 'no messages received',
-        headers: {
-          [constants.KafkaTopic]: topics,
-          [constants.KafkaGroupId]: groupId,
-        },
-        request,
-        message: `no messages received (topics: ${topics.join(', ')}, groupId: ${groupId})`,
-        body: utils.stringifySafe({ topics, groupId, messageCount }, 2),
-      });
-    }
-    if (session.consumers.get(groupId) === consumer) {
-      session.consumers.delete(groupId);
-    }
-    // the library can not disconnect while the pause is still pending
-    await new Promise(resolve => setTimeout(resolve, PauseSettleTime));
-    await disconnectConsumer(consumer);
-    resolveCompleted();
-  };
-
-  try {
-    await consumer.subscribe({ topics });
-    for (const topicPartitionOffset of getTopicPartitionOffsets(request) || []) {
-      consumer.seek(topicPartitionOffset);
-    }
-    await consumer.run({
-      eachMessage: async (payload: KafkaEachMessagePayload) => {
-        if (stopped || (maxMessages && messageCount >= maxMessages)) {
-          // throwing prevents the library from storing (and committing) the offset of the skipped message
-          throw new Error(ConsumeStoppedMessage);
-        }
-        messageCount++;
-        onMessage(payload.topic, toConsumeResponse(payload, groupId, request));
-        if (maxMessages && messageCount >= maxMessages) {
-          pauseConsumer();
-          // eachMessage must not wait for the consumer disconnect
-          setImmediate(() => void stop());
-        }
-      },
+  const createStream = (initialOffsets?: Array<KafkaTopicPartitionOffset>) =>
+    consumer.consume({
+      topics,
+      autocommit: false,
+      mode: initialOffsets ? 'manual' : 'committed',
+      fallbackMode: fromBeginning ? 'earliest' : 'latest',
+      ...(initialOffsets
+        ? {
+            offsets: initialOffsets.map(offset => ({
+              topic: offset.topic,
+              partition: offset.partition,
+              offset: BigInt(offset.offset),
+            })),
+          }
+        : {}),
     });
-  } catch (err) {
-    stopped = true;
-    session.consumers.delete(groupId);
-    await disconnectConsumer(consumer);
-    throw err;
+
+  let currentStream = await createStream(offsets);
+  const consumerState: KafkaActiveConsumer = {
+    consumer,
+    stream: currentStream,
+    topics,
+    latestMessages: new Map(),
+    seek: async seekOffsets => {
+      currentStream.pause();
+      await new Promise(resolve => setTimeout(resolve, PauseSettleTime));
+      await currentStream.close();
+      consumerState.latestMessages.clear();
+      currentStream = await createStream(seekOffsets);
+      consumerState.stream = currentStream;
+      processStream(currentStream);
+    },
+    stop: async () => {
+      if (stopped) {
+        return;
+      }
+      stopped = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+      if (autoCommitTimer) {
+        clearInterval(autoCommitTimer);
+      }
+      if (autoCommit && !endedWithError) {
+        try {
+          await commitLatestMessages();
+        } catch (err) {
+          endedWithError = true;
+          onMessage('error', errorToHttpResponse(err, request));
+        }
+      }
+      if (messageCount === 0 && !endedWithError) {
+        onMessage('consume', {
+          protocol: 'KAFKA',
+          name: `KAFKA consume ${topics.join(', ')}`,
+          statusCode: 0,
+          statusMessage: 'no messages received',
+          headers: {
+            [constants.KafkaTopic]: topics,
+            [constants.KafkaGroupId]: groupId,
+          },
+          request,
+          message: `no messages received (topics: ${topics.join(', ')}, groupId: ${groupId})`,
+          body: utils.stringifySafe({ topics, groupId, messageCount }, 2),
+        });
+      }
+      if (session.consumers.get(groupId) === consumerState) {
+        session.consumers.delete(groupId);
+      }
+      await currentStream.close();
+      await consumer.close();
+      resolveCompleted();
+    },
+  };
+  session.consumers.set(groupId, consumerState);
+
+  function processStream(stream: typeof currentStream) {
+    void (async () => {
+      try {
+        for await (const message of stream) {
+          if (stopped || stream !== currentStream) {
+            break;
+          }
+          const payload: KafkaEachMessagePayload = {
+            topic: message.topic,
+            partition: message.partition,
+            message,
+          };
+          messageCount++;
+          consumerState.latestMessages.set(`${message.topic}:${message.partition}`, message);
+          onMessage(payload.topic, toConsumeResponse(payload, groupId, request));
+          if (maxMessages && messageCount >= maxMessages) {
+            stream.pause();
+            setImmediate(() => void consumerState.stop());
+            break;
+          }
+        }
+      } catch (err) {
+        if (!stopped && stream === currentStream) {
+          endedWithError = true;
+          onMessage('error', errorToHttpResponse(err, request));
+          void consumerState.stop();
+        }
+      }
+    })();
   }
+
+  async function commitLatestMessages() {
+    await Promise.all([...consumerState.latestMessages.values()].map(message => message.commit()));
+  }
+
+  processStream(currentStream);
   if (timeout) {
-    timer = setTimeout(() => void stop(), timeout);
+    timer = setTimeout(() => void consumerState.stop(), timeout);
+  }
+  if (autoCommit) {
+    autoCommitTimer = setInterval(() => {
+      if (!stopped) {
+        void commitLatestMessages().catch(err => {
+          endedWithError = true;
+          onMessage('error', errorToHttpResponse(err, request));
+          void consumerState.stop();
+        });
+      }
+    }, autoCommitInterval);
   }
   return {
     completed: maxMessages || timeout ? completed : undefined,
-    stop,
+    stop: consumerState.stop,
   };
 }
 
@@ -156,9 +211,27 @@ function toConsumeResponse(
   groupId: string,
   request: KafkaMethodContext['request']
 ) {
-  const messageHeaders = fromKafkaMessageHeaders(message.headers);
+  const messageHeaders = fromKafkaMessageHeaders(
+    message.headerEntries.reduce<Record<string, Buffer | string | Array<Buffer | string>>>((headers, [key, value]) => {
+      if (key && value) {
+        const headerName = key.toString('utf-8');
+        const headerValue = Buffer.from(value);
+        const existing = headers[headerName];
+        if (!existing) {
+          headers[headerName] = headerValue;
+        } else if (Array.isArray(existing)) {
+          existing.push(headerValue);
+        } else {
+          headers[headerName] = [existing, headerValue];
+        }
+      }
+      return headers;
+    }, {})
+  );
   const contentType = utils.getHeader(messageHeaders, 'content-type');
   const body = message.value ? message.value.toString('utf-8') : '';
+  const offset = message.offset.toString();
+  const timestamp = message.timestamp.toString();
   return {
     protocol: 'KAFKA',
     name: `KAFKA consume ${topic}`,
@@ -168,14 +241,14 @@ function toConsumeResponse(
       ...messageHeaders,
       [constants.KafkaTopic]: topic,
       [constants.KafkaPartition]: partition,
-      [constants.KafkaOffset]: message.offset,
+      [constants.KafkaOffset]: offset,
       [constants.KafkaKey]: message.key ? message.key.toString('utf-8') : undefined,
-      [constants.KafkaTimestamp]: message.timestamp,
+      [constants.KafkaTimestamp]: timestamp,
       [constants.KafkaGroupId]: groupId,
     },
     contentType: utils.isString(contentType) ? utils.parseMimeType(contentType) : undefined,
     request,
-    message: `${body} (topic: ${topic}, partition: ${partition}, offset: ${message.offset})`,
+    message: `${body} (topic: ${topic}, partition: ${partition}, offset: ${offset})`,
     body,
     rawBody: message.value ? Buffer.from(message.value) : undefined,
   };

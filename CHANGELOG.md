@@ -1,41 +1,105 @@
-
-## [Unreleased]
+## v6.17.0
 
 ### Features
-- Kafka support (`KAFKA`, `kafka://` and `kafkas://` requests) with the methods `produce`, `consume`, `commit` and `seek`, using the optional dependency `@confluentinc/kafka-javascript` (see [Kafka guide](docs/kafka.md))
-- set Kafka message headers with request headers and read consumed message headers as response headers
 
-### Chore
-- removed unused dependency `kafkajs`
+- _(#796)_ add support for better Buffer JSON stringify ([10d03fd](https://github.com/ZeroWiggliness/httpyac/commit/10d03fdf478d3a172835eb58d0dd0dca2acb2cde))
+- add https_proxy support ([cdd78e2](https://github.com/ZeroWiggliness/httpyac/commit/cdd78e24544105ca48c4e84bc9df684c1f1d24f3))
+- Add Kafka protocol support ([#11](https://github.com/ZeroWiggliness/httpyac/issues/11)) ([f1e297e](https://github.com/ZeroWiggliness/httpyac/commit/f1e297e358388869470ca075f80a956f54c65bef))
+- add QUERY method support and related tests ([fdc9b9b](https://github.com/ZeroWiggliness/httpyac/commit/fdc9b9bdbe3b914fb52c532df448749aba06cb0c))
+- add some logging to $auth replacement (Anweber/vscode-httpyac[#309](https://github.com/ZeroWiggliness/httpyac/issues/309)) ([d1628a5](https://github.com/ZeroWiggliness/httpyac/commit/d1628a5eef9f2a6f8468f5bb9b597b705cca46f0))
+- changed behaviour from `@ref` (AnWeber/vscode-httpyac[#336](https://github.com/ZeroWiggliness/httpyac/issues/336)) ([7339667](https://github.com/ZeroWiggliness/httpyac/commit/733966796efa95bbf9c6a7dac5adf4aa959b036b))
+- ignore all xml parse exceptions with undefined and log statement ([#821](https://github.com/ZeroWiggliness/httpyac/issues/821)) ([e7c272e](https://github.com/ZeroWiggliness/httpyac/commit/e7c272e76d4415342b9ceebd382caf8b821ae34b))
+- logger supports call to parent logger (AnWeber/vscode-httpyac[#347](https://github.com/ZeroWiggliness/httpyac/issues/347)) ([3174b19](https://github.com/ZeroWiggliness/httpyac/commit/3174b1945a9717d1f761916e70745e8fc1cdf105))
+- prefix output with name as fallback for title (AnWeber/vscode-httpyac[#318](https://github.com/ZeroWiggliness/httpyac/issues/318)) ([620ef48](https://github.com/ZeroWiggliness/httpyac/commit/620ef487008fdf7a4485705a5ae514eba368254c))
+- remove `unexpected-response` listener to support abortHandshake in ws ([#816](https://github.com/ZeroWiggliness/httpyac/issues/816)) ([5827f89](https://github.com/ZeroWiggliness/httpyac/commit/5827f89f2af94f295c87509476078c2e69669579))
+- remove file output if assert ?? is used (AnWeber/vscode-httpyac[#335](https://github.com/ZeroWiggliness/httpyac/issues/335)) ([0fdfe16](https://github.com/ZeroWiggliness/httpyac/commit/0fdfe162dfeb0dfe52586c1590c70c0245813fae))
+- remove types of tough-cookie ([e21452d](https://github.com/ZeroWiggliness/httpyac/commit/e21452d3519deedaa7f0f7f72e309df77eb481e6))
+- revert testUtils test change ([6e24065](https://github.com/ZeroWiggliness/httpyac/commit/6e24065b8ff1faf2e43937f386a5e7677ce7d8c4))
+- support `http_proxy` environment variable ([a66ac9f](https://github.com/ZeroWiggliness/httpyac/commit/a66ac9f530178f04e3c9bf8fa13f18384de26e89))
+- support $env intellij environment variables access ([#811](https://github.com/ZeroWiggliness/httpyac/issues/811)) ([96d311d](https://github.com/ZeroWiggliness/httpyac/commit/96d311dad8d2395785455064fec9e6d56f930802))
+- support client certificates on OAuth2 Requests ([#802](https://github.com/ZeroWiggliness/httpyac/issues/802)) ([b39a474](https://github.com/ZeroWiggliness/httpyac/commit/b39a4742e9a8d65191e8c9692a1b0e95b1888139))
+- update changelog and add some logs ([1b9d06f](https://github.com/ZeroWiggliness/httpyac/commit/1b9d06fbcba32c4573857b18b21cfe4d0785cbfe))
+- Update cloudamqp/amqp-client to v3.4.1 to make AMQP work again. ([22faaee](https://github.com/ZeroWiggliness/httpyac/commit/22faaee1baa7e67066c7c13d8600a0f42ae82e6d))
+- update inquirer ([322f54c](https://github.com/ZeroWiggliness/httpyac/commit/322f54c2475c7767b52ed39e50ff00f221372526))
+- update Intellij d.ts Stubs and add Window.btoa/atob ([#839](https://github.com/ZeroWiggliness/httpyac/issues/839)) ([3f12e64](https://github.com/ZeroWiggliness/httpyac/commit/3f12e64fcef9fab162f8d35dfa2068f3f1f2cfe2))
+- update uuid ([be8f0bf](https://github.com/ZeroWiggliness/httpyac/commit/be8f0bfd41510852ac2b0292ec7064aaa4d37438))
+- update uuid ([b122103](https://github.com/ZeroWiggliness/httpyac/commit/b122103dddbee7b48eb414c363bfd1ccc174446a))
+- update version ([498fa39](https://github.com/ZeroWiggliness/httpyac/commit/498fa39ee7efd479379ad631a76d49e83d88f99b))
+- update xmldom ([f63bbd0](https://github.com/ZeroWiggliness/httpyac/commit/f63bbd0ab9ab148287a3d158d42c458e9053824b))
+
+### Bug Fixes
+
+- _(#813)_ update tough-cookie to remove punycode deprecation warning ([e457ab5](https://github.com/ZeroWiggliness/httpyac/commit/e457ab536db6b8feb8876dd9c3ae1721fa3d33a0))
+- _(#821)_ handle dom parser exception for invalid xml ([c34481c](https://github.com/ZeroWiggliness/httpyac/commit/c34481ce477a75fadf282dae32587e1de89d04e6))
+- _(AnWeber/vscode-httpyac#323)_ add skipped test result on user cancellation ([7905f2d](https://github.com/ZeroWiggliness/httpyac/commit/7905f2d316ab66db6f93480973775d6834e479a9))
+- _(AnWeber/vscode-httpyac#338)_ do not log stack on assertions error ([e8851dc](https://github.com/ZeroWiggliness/httpyac/commit/e8851dc54736f8bd830954063cd8c64ff5a37058))
+- _(AnWeber/vscode-httpyac#338)_ do not log stack on assertions error ([55e0867](https://github.com/ZeroWiggliness/httpyac/commit/55e08676c2462292a4b984319eef2495fddd8665))
+- add skip test result if `@ref` is skipped (AnWeber/vscode-httpyac[#297](https://github.com/ZeroWiggliness/httpyac/issues/297)) ([0b562f2](https://github.com/ZeroWiggliness/httpyac/commit/0b562f24d19cbad226c46c1c44bc3a200b1d5449))
+- allow proxy for oauth2 using `oauth2_proxy` ([#841](https://github.com/ZeroWiggliness/httpyac/issues/841)) ([1889adf](https://github.com/ZeroWiggliness/httpyac/commit/1889adff93d66beb0fb543915c92bad5e8903bbf))
+- change log message to warn (AnWeber/vscode-httpyac[#357](https://github.com/ZeroWiggliness/httpyac/issues/357)) ([7355702](https://github.com/ZeroWiggliness/httpyac/commit/7355702b78d5985d0f122355d83c6b8924a820f8))
+- ensure correct order if cli args are used ([#773](https://github.com/ZeroWiggliness/httpyac/issues/773)) ([f7c692b](https://github.com/ZeroWiggliness/httpyac/commit/f7c692bf5eca80d3cc2df392099f6fb703d707a9))
+- errored or skipped referenced httpregion also skips current http region ([#842](https://github.com/ZeroWiggliness/httpyac/issues/842), AnWeber/vscode-httpyac[#339](https://github.com/ZeroWiggliness/httpyac/issues/339)) ([d9e932e](https://github.com/ZeroWiggliness/httpyac/commit/d9e932e26f5afa04ab78790c6cc07d05cd519340))
+- failed tests in reference skips request (AnWeber/vscode-httpyac[#335](https://github.com/ZeroWiggliness/httpyac/issues/335)) ([443b84a](https://github.com/ZeroWiggliness/httpyac/commit/443b84a2d48a67d703d174ad13e68de45d8f1bab))
+- ignore whitespace before & in formurlencoded ([#699](https://github.com/ZeroWiggliness/httpyac/issues/699)) ([466f92d](https://github.com/ZeroWiggliness/httpyac/commit/466f92d36778612bc482a03ddcd699751984c7d3))
+- junit testcase failure message ([89a439d](https://github.com/ZeroWiggliness/httpyac/commit/89a439dfd99841f4d6874472b8782261b5430c06))
+- logic issue if testResults is only success ([69609d2](https://github.com/ZeroWiggliness/httpyac/commit/69609d2c11e1fcb81d66f59e774b520d4d534dd2))
+- named response is only set, if all testResults are valid ([c7d9f78](https://github.com/ZeroWiggliness/httpyac/commit/c7d9f7857ca842e9b43144228d405cf232cbf862))
+- remove xpath property ([c0c16d9](https://github.com/ZeroWiggliness/httpyac/commit/c0c16d9451925bfa4e6bdab52ceaa197077699b1))
+- return non-zero exit code for errored test ([f2663e5](https://github.com/ZeroWiggliness/httpyac/commit/f2663e50202adb54b6f5c705b58572de12b421ce))
+- state parameter validation ([4807e18](https://github.com/ZeroWiggliness/httpyac/commit/4807e181c22208bf29f44e386c9c8fe9229348c2))
+- test without signature ([460db94](https://github.com/ZeroWiggliness/httpyac/commit/460db941799c09daa7ca66a582decc68aaae4f22))
+- tsc error after update ([1526d8f](https://github.com/ZeroWiggliness/httpyac/commit/1526d8fea6d71160ed8cf3a11d9248b1275cc841))
+- typo in environment ([#767](https://github.com/ZeroWiggliness/httpyac/issues/767)) ([42e3fcd](https://github.com/ZeroWiggliness/httpyac/commit/42e3fcdc45659d0db0bae7efc63cf7ddbf857ca0))
+- typo in summary ([#762](https://github.com/ZeroWiggliness/httpyac/issues/762)) ([03543ec](https://github.com/ZeroWiggliness/httpyac/commit/03543ec716d6b2b35d62a9d38d3a2704dcad9bdd))
+- use different exit codes for errored and failed tests ([4e3b601](https://github.com/ZeroWiggliness/httpyac/commit/4e3b601651d044e53caef77e7a80df2bc4d3c61d))
+- use only valid mimetype in parseFromString ([b8639c0](https://github.com/ZeroWiggliness/httpyac/commit/b8639c014b88418d3ab367ae4d4df6664e1cbddf))
+- use regex in test for date match ([9e93c80](https://github.com/ZeroWiggliness/httpyac/commit/9e93c806d2f7640e83b130cdb9abe3cbce1981f2))
+
+### Documentation
+
+- add example to variables to cli ([#767](https://github.com/ZeroWiggliness/httpyac/issues/767)) ([87d71c8](https://github.com/ZeroWiggliness/httpyac/commit/87d71c8a756962adcb98e8d34fdb5025e6194c83))
+- update changelog ([5365c80](https://github.com/ZeroWiggliness/httpyac/commit/5365c8072f9182680456332514f600ef04e0248c))
+- update changelog ([8cbc1ea](https://github.com/ZeroWiggliness/httpyac/commit/8cbc1ea01d3c5a2049d9df1295bfde76ff9073f9))
+- update changelog ([37ddfff](https://github.com/ZeroWiggliness/httpyac/commit/37ddfff3df9e812ab19fa64b1affe939d3969912))
+- update changelog ([dd913bd](https://github.com/ZeroWiggliness/httpyac/commit/dd913bd5e8971f5974355d859531af3445e4cc5f))
+
+---
+
+_Generated on 2026-10-05_
 
 ## [6.16.7] (2025-03-30)
 
 ### Fix
+
 - ignore whitespace before & in formurlencoded (#699)
 - Invalid state error with authorization code flow when the state parameter is percent-encoded (#871)
 
 ## [6.16.6] (2025-01-11)
 
 ### Fix
+
 - allow proxy for oauth2 using `oauth2_proxy` (#841)
 
 ## [6.16.5] (2025-01-06)
 
 ### Features
+
 - logger supports call to parent logger (AnWeber/vscode-httpyac#347)
 - update Intellij d.ts Stubs and add Window.btoa/atob (#839)
 
 ### Fix
+
 - ensure correct order if cli args are used (#773)
 - errored or skipped referenced httpregion also skips current http region (#842, AnWeber/vscode-httpyac#339)
-
 
 ## [6.16.4] (2024-11-03)
 
 ### Features
+
 - add support for better Buffer JSON stringify (#796)
 
 ### Fix
+
 - handle dom parser exception for invalid xml (#821)
 - do not log stack on assertions error (AnWeber/vscode-httpyac#338)
 - only clear output channel for test runs (AnWeber/vscode-httpyac#337)
@@ -44,27 +108,29 @@
 ## [6.16.3] (2024-10-30)
 
 ### Fix
+
 - revert: named response is only set, if all testResults are valid
 - changed behaviour from `@ref` (AnWeber/vscode-httpyac#336)
   - negative test results from reference does not stop dependent request
   - errored reference is not executed multiple times if it is referenced multiple times
 
-
 ## [6.16.2] (2024-10-29)
 
 ### Fix
-- named response is only set, if all testResults are valid
 
+- named response is only set, if all testResults are valid
 
 ## [6.16.1] ( 2024-10-29)
 
 ### Fix
+
 - support `http_proxy` environment variable
 - support html mimetype for dom parser and use only valid mimetype in parseFromString
 
-
 ## [6.16.0] ( 2024-10-28)
+
 ### Features
+
 - support client certificates on OAuth2 Requests (#802)
 - update tough-cookie to remove punycode deprecation warning (#813)
 - support $env intellij environment variables access (#811)
@@ -73,7 +139,9 @@
 - remove `unexpected-response` listener to support abortHandshake in ws (#816)
 
 ## [6.15.1] ( 2024-08-22)
+
 ### Features
+
 - prefix output with name as fallback for title (AnWeber/vscode-httpyac#318)
 
 ### Fix
@@ -83,56 +151,74 @@
 - add skip test result if `@ref` is skipped (AnWeber/vscode-httpyac#297)
 
 ## [6.15.0] ( 2024-08-04)
+
 ### Features
+
 - add support to define timeout per request using `request.timeout` or setting variable `request_timeout`
 
 ### Fix
+
 - variables in gql Query body are replaced (AnWeber/vscode-httpyac#303)
 - allow defaultHeaders to overwrite accept or user-agent header
 - only try loading grpc reflection if no other protodefinition file is imported or it is explicitly triggerd using grpcReflection (#757)
 - add better handling for disabled and error tests (Anweber/vscode-httpyac#297, #760)
-- support empty passwords for Basic auth  (#751)
+- support empty passwords for Basic auth (#751)
 - error do not bail test runs and instead just set error for this httpRegion (#708)
 
 ## [6.14.0] ( 2024-06-01)
+
 ### Features
+
 - add `--tag` support to cli to only execute httpRegion with defined tag (#693)
 
 ### Fix
+
 - prevent readFile Error log output on package.json search (Anweber/vscode-httpyac#293)
 - disabled MetaData Handler checks disabled State on occurence of line in execution order (AnWeber/vscode-httpyac#292)
 - support Intellij Multiline FormUrlEncoded Syntax (#699)
 - better match .env files to ignore false positive like `.envrc` (#700)
 
 ## [6.13.3]
+
 ### Fix
+
 - Aws Signing use query params in signing request (#684)
 - allow check for floats (Anweber/vscode-httpyac#283)
 
 ## [6.13.2] ( 2024-05-01)
+
 ### Fix
+
 - ensureUniqueId on merge (Anweber/vscode-httpyac#280)
 - replace header variables after body variables to allow valide Request Signing (#684)
 
 ## [6.13.1] ( 2024-04-29)
 
 ### Fix
+
 - `$random.integer() returns valid integer (Anweber/vscode-httpyac#277)
 
 ## [6.13.0]
+
 ### Features
+
 - update to new API Changes of Intellij Http Client
 - add support for OAuth2 Intellij API (AnWeber/vscode-httpyac#275)
 
 ### Fix
+
 - JUnit Test Output conforms to Junit 5 XSD (#673)
 
 ## [6.12.2]
+
 ### Fix
+
 - test results generated by `@loop` override previous test results for junit output(#664)
 
 ## [6.12.1]
+
 ### Fix
+
 - provide no duplicate symbols on filter call (Anweber/vscode-httpyac#269)
 - request count ignores disabled region (#663)
 - show replaced expected value in test results to improve user experience (#663)
@@ -140,37 +226,44 @@
 ## [6.12.0] (2023-03-17)
 
 ### Features
+
 - add current symbol to filter result if symbol matches predicate (AnWeber/vscode-httpyac#265)
 
 ### Fix
+
 - call `end()` instead of `cancel()`on successful GRPC Client Streaming (Anweber/vscode-httpyac#264)
 
 ## [6.11.5] (2023-02-27)
 
 ### Fix
+
 - replace grpc-reflection-js with grpc-js-reflection-client
 - fix order of log output in cli (#644)
 
 ## [6.11.4] (2023-02-25)
 
 ### Fix
+
 - Assertsions for Zero are working (AnWeber/vscode-httpyac#260)
 - typo in junit report.xml generation (#642)
 
 ## [6.11.3] (2023-02-02)
 
 ### Fix
+
 - Variable is replaced in multipart/form-data when file is injected (AnWeber/vscode-httpyac#258)
 
 ## [6.11.2] (2023-01-31)
 
 ### Fix
+
 - hide password answer in sessionStore (AnWeber/httpbook#111)
 - add Content-Type if protocol `GRAPHQL` is used to support same API as Intellij HTTP Client (AnWeber/vscode-httpyac#257)
 
 ## [6.11.1] (2023-01-14)
 
 ### Fix
+
 - Intellij store variables independent from current env in global cache (#612)
 - always use GRPC Reflection to support same Behaviour as Intellij (Anweber/vscode-httpyac#254)
 
@@ -206,14 +299,12 @@
 
 - add [npm package provenance](https://github.blog/2023-04-19-introducing-npm-package-provenance/) (2nd try)
 
-
 ## [6.9.2] (2023-11-05)
 
 ### Fix
 
 - improve junit output with updated testcase node
 - add [npm package provenance](https://github.blog/2023-04-19-introducing-npm-package-provenance/)
-
 
 ## [6.9.1] (2023-11-01)
 
@@ -225,7 +316,7 @@
 
 ### Feature
 
-- junit export using '--junit'  args
+- junit export using '--junit' args
 
 ### Fix
 
@@ -255,6 +346,7 @@
 - add support for grpc-reflection (#566)
 
 ### Fix
+
 - only use default scope `opendid` if no scope is defined (#560)
 - use repeat only in mainContext and not in forceRef calls (#562)
 - store all connections as session in userStorage to allow disconnect (#565)
@@ -279,27 +371,25 @@
 
 - improvements to completionItem API (AnWeber/vscode-httpyac#224)
 
-
-## [6.6.7]  (2023-09-18)
+## [6.6.7] (2023-09-18)
 
 ### Fixes
 
 - reenable Http Header completion (AnWeber/vscode-httpyac#223)
 
-
-## [6.6.6]  (2023-09-15)
+## [6.6.6] (2023-09-15)
 
 ### Fixes
 
 - resolve connect Promise in Websocket Requests on close before open Connection (AnWeber/httpbook#96)
 
-## [6.6.5]  (2023-09-06)
+## [6.6.5] (2023-09-06)
 
 ### Fixes
 
 - support of `--bail` does also work in referenced http files (#540)
 
-## [6.6.4]  (2023-09-02)
+## [6.6.4] (2023-09-02)
 
 ### Fixes
 
@@ -307,51 +397,52 @@
 - allow for variable use in $pick picklists: `{{ $pick ask-variable? $value: data }}` (#537)
 - pre request in intellij format is executed before variable replacer (#534)
 - allow removal of UserAgent Header (httpyac/httpyac.github.io#70) using script
+
 ```
 {{@request
   request.headers["User-Agent"] = undefined
 }}
 ```
 
-## [6.6.3]  (2023-07-25)
+## [6.6.3] (2023-07-25)
 
 ### Fixes
 
 - support multiple `# @import` of the same file from different httpFiles (#508)
 
-## [6.6.2]  (2023-07-24)
+## [6.6.2] (2023-07-24)
 
 ### Fixes
 
 - support OData Batch Processing (#507)
 
-## [6.6.1]  (2023-07-23)
+## [6.6.1] (2023-07-23)
 
 ### Fixes
 
 - improve stability of asserts using objects/arrays (#503)
 
-## [6.6.0]  (2023-07-17)
+## [6.6.0] (2023-07-17)
 
 ### Features
 
 - add method `$getOAuth2Response` to javascript context (#499)
 - add `HttpClientProvider` and `JavascriptProvider` to httpyac API
-- allow global Asserts and `onRequest`/ `onResponse` hooks and import global Asserts from other Http Files (#488) 
+- allow global Asserts and `onRequest`/ `onResponse` hooks and import global Asserts from other Http Files (#488)
 - support xpath namespaces using `@xpath_ns` (#493)
 
 ### Fixes
 
 - always log current `httpRegion` and `response` on exception (#275)
 
-## [6.5.1]  (2023-06-13)
+## [6.5.1] (2023-06-13)
 
 ### Fixes
 
 - `output=none` is respected in CLI (#477)
 - `$input-askonce` does not ask again for existing variables (#477)
 
-## [6.5.0]  (2023-06-11)
+## [6.5.0] (2023-06-11)
 
 ### Features
 
@@ -363,7 +454,7 @@
 
 - use `env` as default env dirname (Anweber/vscode-httpyac#198)
 
-## [6.4.6]  (2023-06-09)
+## [6.4.6] (2023-06-09)
 
 ### Fixes
 

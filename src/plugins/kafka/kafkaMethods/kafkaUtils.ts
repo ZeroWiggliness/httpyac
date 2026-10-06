@@ -3,7 +3,7 @@ import * as models from '../../../models';
 import * as utils from '../../../utils';
 import { KafkaRequest } from '../kafkaRequest';
 import {
-  KafkaConsumer,
+  KafkaActiveConsumer,
   KafkaMessageHeaders,
   KafkaProducer,
   KafkaSession,
@@ -108,71 +108,56 @@ export function getRequiredGroupId(request: KafkaRequest, method: string) {
 }
 
 export function getProducer(session: KafkaSession, request: KafkaRequest): Promise<KafkaProducer> {
-  const kafkaJS: Record<string, unknown> = {};
+  const options = getKafkaClientConfig(session);
   const acks = utils.getHeaderNumber(request.headers, constants.KafkaAcks);
   if (!utils.isUndefined(acks)) {
-    kafkaJS.acks = acks;
+    options.acks = acks;
   }
   const compression = utils.getHeaderString(request.headers, constants.KafkaCompression)?.trim().toLowerCase();
-  if (compression) {
-    kafkaJS.compression = compression;
+  if (compression && compression !== 'none') {
+    options.compression = compression;
   }
-  const key = utils.stringifySafe(kafkaJS);
+  const key = utils.stringifySafe({ acks, compression });
   let producer = session.producers.get(key);
   if (!producer) {
-    producer = (async () => {
-      const result = session.kafka.producer({ kafkaJS });
-      await result.connect();
-      return result;
-    })();
+    producer = Promise.resolve(new session.kafka.Producer(options));
     session.producers.set(key, producer);
     producer.catch(() => session.producers.delete(key));
   }
   return producer;
 }
 
-const consumerDisconnectTimeout = 10000;
-
-/**
- * disconnects the consumer, but does not wait longer than 10 seconds
- */
-export async function disconnectConsumer(consumer: KafkaConsumer) {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<'timeout'>(resolve => {
-    timer = setTimeout(() => resolve('timeout'), consumerDisconnectTimeout);
-  });
+export async function alterGroupOffsets(
+  session: KafkaSession,
+  groupId: string,
+  offsets: Array<KafkaTopicPartitionOffset>
+): Promise<void> {
+  const admin = new session.kafka.Admin(getKafkaClientConfig(session));
   try {
-    const result = await Promise.race([consumer.disconnect(), timeout]);
-    if (result === 'timeout') {
-      io.log.warn(`kafka consumer disconnect did not finish within ${consumerDisconnectTimeout}ms`);
-    }
-  } catch (err) {
-    io.log.debug('kafka consumer disconnect failed', err);
+    await admin.alterConsumerGroupOffsets({
+      groupId,
+      topics: groupOffsetsByTopic(offsets),
+    });
   } finally {
-    clearTimeout(timer);
+    await admin.close();
   }
 }
 
-/**
- * creates a short-lived consumer of the group (without joining the group) to commit offsets
- */
-export async function withTemporaryConsumer<T>(
-  session: KafkaSession,
-  groupId: string,
-  action: (consumer: KafkaConsumer) => Promise<T>
-): Promise<T> {
-  const consumer = session.kafka.consumer({
-    kafkaJS: {
-      groupId,
-      autoCommit: false,
-    },
-  });
-  await consumer.connect();
-  try {
-    return await action(consumer);
-  } finally {
-    await disconnectConsumer(consumer);
+function getKafkaClientConfig(session: KafkaSession): Record<string, unknown> {
+  const options = { ...session.config };
+  delete options.groupProtocol;
+  delete options.partitionAssignmentStrategy;
+  return options;
+}
+
+function groupOffsetsByTopic(offsets: Array<KafkaTopicPartitionOffset>) {
+  const topics = new Map<string, Array<{ partition: number; offset: bigint }>>();
+  for (const { topic, partition, offset } of offsets) {
+    const topicOffsets = topics.get(topic) || [];
+    topicOffsets.push({ partition, offset: BigInt(offset) });
+    topics.set(topic, topicOffsets);
   }
+  return [...topics].map(([name, partitionOffsets]) => ({ name, partitionOffsets }));
 }
 
 export async function disconnectSession(session: KafkaSession) {
@@ -181,9 +166,13 @@ export async function disconnectSession(session: KafkaSession) {
   session.consumers.clear();
   session.producers.clear();
   await Promise.allSettled([
-    ...consumers.map(consumer => disconnectConsumer(consumer)),
-    ...producers.map(async producer => (await producer).disconnect()),
+    ...consumers.map(consumer => consumer.stop()),
+    ...producers.map(async producer => (await producer).close()),
   ]);
+}
+
+export async function disconnectConsumer(consumer: KafkaActiveConsumer) {
+  await consumer.stop();
 }
 
 export function warn(message: string) {
@@ -205,11 +194,31 @@ export function errorToHttpResponse(err: unknown, request: KafkaRequest): models
           name: err.name,
           message: err.message,
           code: (err as Error & { code?: unknown }).code,
+          errors: getAggregateErrorDetails(err),
           stack: err.stack,
         },
         2
       ),
     };
+  }
+
+  function getAggregateErrorDetails(
+    err: Error
+  ): Array<{ name: string; message: string; code?: unknown; errors?: Array<unknown> }> | undefined {
+    if (!(err instanceof AggregateError)) {
+      return undefined;
+    }
+    return [...err.errors].map(error => {
+      if (utils.isError(error)) {
+        return {
+          name: error.name,
+          message: error.message,
+          code: (error as Error & { code?: unknown }).code,
+          errors: getAggregateErrorDetails(error),
+        };
+      }
+      return { name: typeof error, message: utils.toString(error) ?? '' };
+    });
   }
   return {
     protocol: 'KAFKA',
