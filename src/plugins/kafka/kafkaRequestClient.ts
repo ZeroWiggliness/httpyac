@@ -1,6 +1,7 @@
 import { log } from '../../io';
 import * as models from '../../models';
 import * as utils from '../../utils';
+import * as fs from 'node:fs';
 import { kafkaClientProvider } from './kafkaClientProvider';
 import * as kafkaMethods from './kafkaMethods';
 import * as constants from './kafkaMethods/kafkaConstants';
@@ -125,70 +126,120 @@ export function parseBrokers(url: string): Array<string> {
 
 export function getKafkaConfig(request: KafkaRequest, context: models.ProcessorContext): Record<string, unknown> {
   const headers = request.headers;
-  const kafkaJS: Record<string, unknown> = {
-    brokers: parseBrokers(request.url),
+  const config: Record<string, unknown> = {
+    bootstrapBrokers: parseBrokers(request.url),
     clientId: utils.getHeaderString(headers, constants.KafkaClientId) || 'httpyac',
-    ssl: /^\s*kafkas:\/\//iu.test(request.url) || utils.getHeaderBoolean(headers, constants.KafkaSsl, false),
-    logger: createLogger(),
   };
+  let useTls = /^\s*kafkas:\/\//iu.test(request.url) || utils.getHeaderBoolean(headers, constants.KafkaSsl, false);
 
   const username = utils.getHeaderString(headers, constants.KafkaUsername);
   const password = utils.getHeaderString(headers, constants.KafkaPassword);
   const mechanism = utils.getHeaderString(headers, constants.KafkaSaslMechanism)?.trim().toLowerCase();
   if (mechanism || username) {
-    kafkaJS.sasl = {
-      mechanism: mechanism || 'plain',
+    config.sasl = {
+      mechanism: toPlatformaticSaslMechanism(mechanism || 'plain'),
       username,
       password,
     };
   }
   const timeout = request.timeout || utils.toNumber(context.config?.request?.timeout);
   if (timeout) {
-    kafkaJS.connectionTimeout = timeout;
+    config.connectTimeout = timeout;
   }
 
-  const config: Record<string, unknown> = {};
-  if (
+  const rejectUnauthorized =
     request.noRejectUnauthorized ||
     (!utils.isUndefined(context.config?.request?.rejectUnauthorized) &&
-      !utils.toBoolean(context.config?.request?.rejectUnauthorized, true))
-  ) {
-    config['enable.ssl.certificate.verification'] = false;
-  }
+      !utils.toBoolean(context.config?.request?.rejectUnauthorized, true));
+  const tls: Record<string, unknown> = {};
+  const unsupportedConfig: Array<string> = [];
   for (const [key, value] of Object.entries(headers || {})) {
-    if (key.toLowerCase().startsWith(constants.KafkaConfigPrefix) && !utils.isUndefined(value)) {
-      config[key.slice(constants.KafkaConfigPrefix.length)] = Array.isArray(value) ? value.join(',') : value;
+    if (!key.toLowerCase().startsWith(constants.KafkaConfigPrefix) || utils.isUndefined(value)) {
+      continue;
+    }
+    const configKey = key.slice(constants.KafkaConfigPrefix.length).toLowerCase();
+    const configValue = (Array.isArray(value) ? value.join(',') : utils.toString(value)) ?? '';
+    switch (configKey) {
+      case 'security.protocol':
+        useTls = /(?:^|_)ssl$/iu.test(configValue);
+        break;
+      case 'sasl.mechanism':
+        config.sasl = {
+          ...(config.sasl as Record<string, unknown> | undefined),
+          mechanism: toPlatformaticSaslMechanism(configValue.toLowerCase()),
+        };
+        break;
+      case 'sasl.username':
+        config.sasl = { ...(config.sasl as Record<string, unknown> | undefined), username: configValue };
+        break;
+      case 'sasl.password':
+        config.sasl = { ...(config.sasl as Record<string, unknown> | undefined), password: configValue };
+        break;
+      case 'ssl.ca.location':
+        tls.ca = fs.readFileSync(configValue);
+        useTls = true;
+        break;
+      case 'ssl.certificate.location':
+        tls.cert = fs.readFileSync(configValue);
+        useTls = true;
+        break;
+      case 'ssl.key.location':
+        tls.key = fs.readFileSync(configValue);
+        useTls = true;
+        break;
+      case 'ssl.key.password':
+        tls.passphrase = configValue;
+        break;
+      case 'ssl.endpoint.identification.algorithm':
+        if (!configValue || configValue.toLowerCase() === 'none') {
+          tls.rejectUnauthorized = false;
+        } else {
+          unsupportedConfig.push(key);
+        }
+        break;
+      case 'group.protocol':
+        config.groupProtocol = configValue.toLowerCase();
+        break;
+      case 'partition.assignment.strategy':
+        config.partitionAssignmentStrategy = configValue.toLowerCase();
+        break;
+      default:
+        unsupportedConfig.push(key);
     }
   }
-  return {
-    ...config,
-    kafkaJS,
-  };
+  if (unsupportedConfig.length > 0) {
+    throw new Error(
+      `Unsupported ${constants.KafkaConfigPrefix} setting(s) for @platformatic/kafka: ${unsupportedConfig.join(', ')}`
+    );
+  }
+  if (useTls && rejectUnauthorized) {
+    tls.rejectUnauthorized = false;
+  }
+  if (useTls || Object.keys(tls).length > 0) {
+    config.tls = tls;
+  }
+  return config;
 }
 
 function createKafkaSession(request: KafkaRequest, context: models.ProcessorContext): KafkaSession {
-  const { Kafka } = kafkaClientProvider.load().KafkaJS;
+  const kafka = kafkaClientProvider.load();
   return {
-    kafka: new Kafka(getKafkaConfig(request, context)),
+    kafka,
+    config: getKafkaConfig(request, context),
     producers: new Map(),
     consumers: new Map(),
   };
 }
 
-function createLogger() {
-  const logger = {
-    info: (message: string, extra?: object) => log.debug(message, extra || ''),
-    debug: (message: string, extra?: object) => log.trace(message, extra || ''),
-    warn: (message: string, extra?: object) => log.warn(message, extra || ''),
-    error: (message: string, extra?: object) => {
-      if (message?.includes?.(constants.ConsumeStoppedMessage)) {
-        log.trace(message, extra || '');
-      } else {
-        log.error(message, extra || '');
-      }
-    },
-    namespace: () => logger,
-    setLogLevel: () => undefined,
-  };
-  return logger;
+function toPlatformaticSaslMechanism(mechanism: string): string {
+  switch (mechanism) {
+    case 'plain':
+      return 'PLAIN';
+    case 'scram-sha-256':
+      return 'SCRAM-SHA-256';
+    case 'scram-sha-512':
+      return 'SCRAM-SHA-512';
+    default:
+      throw new Error(`Unsupported Kafka SASL mechanism: ${mechanism}`);
+  }
 }

@@ -18,10 +18,7 @@ httpyac can produce and consume [Apache Kafka](https://kafka.apache.org/) messag
 
 ## Setup
 
-Kafka support uses [`@confluentinc/kafka-javascript`](https://github.com/confluentinc/confluent-kafka-javascript), which is based on the native library [librdkafka](https://github.com/confluentinc/librdkafka). The package is an **optional dependency** of httpyac:
-
-- It ships prebuilt binaries for Linux (glibc and musl, x64 and arm64), macOS (x64 and arm64) and Windows (x64) for the Node.js versions it supports (the Docker image `ghcr.io/zerowiggliness/httpyac` is covered).
-- If no prebuilt binary fits your platform or Node.js version, npm tries to build it from source, which requires a native build toolchain. If that fails, httpyac still installs and works; only Kafka requests fail with the error `Kafka support requires the optional dependency @confluentinc/kafka-javascript ...`.
+Kafka support uses [`@platformatic/kafka`](https://github.com/platformatic/kafka), a JavaScript Kafka client with no native Kafka addon. It is an **optional dependency** of httpyac and works on Windows with Node.js 24.6 or newer. If the package is unavailable, httpyac still installs and works; Kafka requests report that the optional dependency could not be loaded.
 
 ## Request line
 
@@ -133,7 +130,7 @@ kafka_topic: orders
 
 - `kafka_group_id`: the consumer group. Default: a new group `httpyac-<uuid>` for every request, so without `kafka_from_beginning` only messages produced after the subscription are received.
 - `kafka_from_beginning`: start at the earliest offset if the group has no committed offset (default `false`).
-- `kafka_auto_commit` (default `true`) and `kafka_auto_commit_interval` (ms, default `5000`): commit consumed offsets automatically. Offsets are also committed when the consumer disconnects. Only returned messages are committed; messages the consumer already fetched after `kafka_max_messages` or `kafka_timeout` was reached are not, so the next consume of the group continues right after the last returned message.
+- `kafka_auto_commit` (default `true`) and `kafka_auto_commit_interval` (ms, default `5000`): commit delivered message offsets automatically. The interval must be at least `100` ms. Offsets are also committed when the consumer disconnects. Messages fetched by the client but not returned before `kafka_max_messages` or `kafka_timeout` are not committed, so the next consume of the group continues right after the last returned message.
 - `kafka_offset` (with optional `kafka_partition`, default `0`): seek to this offset before consuming.
 
 ## Commit
@@ -277,7 +274,7 @@ kafka_config_ssl.ca.location: ./ca.pem
 - `kafka_ssl: true` enables SSL (same as `kafkas://`).
 - `kafka_sasl_mechanism`: `plain`, `scram-sha-256` or `scram-sha-512`. If only `kafka_username` is set, `plain` is used.
 - `kafka_client_id`: client id (default `httpyac`).
-- `kafka_config_<property>`: any [librdkafka configuration property](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md), e.g. `kafka_config_ssl.ca.location`, `kafka_config_ssl.certificate.location`, `kafka_config_ssl.key.location`, `kafka_config_security.protocol` or `kafka_config_debug`.
+- `kafka_config_<property>`: supported connection settings for compatibility with existing requests: `ssl.ca.location`, `ssl.certificate.location`, `ssl.key.location`, `ssl.key.password`, `ssl.endpoint.identification.algorithm: none`, `security.protocol`, `sasl.mechanism`, `sasl.username`, `sasl.password`, `group.protocol` and `partition.assignment.strategy`. TLS file locations are read as PEM files. Other librdkafka-specific settings are not supported and cause a clear error.
 - `# @noRejectUnauthorized` or the CLI option `--insecure` turn off SSL certificate verification.
 - The request timeout (`--timeout` or the `timeout` setting) is used as connection timeout.
 
@@ -293,7 +290,7 @@ Requests with the same request line share one connection while they run at the s
 | `kafka_ssl` | all | enable SSL (default `false`, `true` for `kafkas://`) |
 | `kafka_sasl_mechanism` | all | `plain`, `scram-sha-256`, `scram-sha-512` |
 | `kafka_username` / `kafka_password` | all | SASL credentials |
-| `kafka_config_<property>` | all | librdkafka configuration property |
+| `kafka_config_<property>` | all | supported TLS, SASL and consumer-group settings listed above |
 | `kafka_key` | produce | message key |
 | `kafka_partition` | produce, consume, commit, seek | partition (produce: default partitioner; others: default `0`) |
 | `kafka_timestamp` | produce | message timestamp in ms |
@@ -322,16 +319,17 @@ Responses can be written into the http file as inline responses using the format
 
 ## Scripting
 
-The client library is available in scripts with `require('@confluentinc/kafka-javascript')`:
+The client library is available in scripts with `require('@platformatic/kafka')`:
 
 ```http
 {{
-  const { Kafka } = require('@confluentinc/kafka-javascript').KafkaJS;
-  const kafka = new Kafka({ kafkaJS: { brokers: ['localhost:9092'] } });
-  const admin = kafka.admin();
-  await admin.connect();
-  exports.topics = await admin.listTopics();
-  await admin.disconnect();
+  const { Producer } = require('@platformatic/kafka');
+  const producer = new Producer({
+    clientId: 'httpyac-script',
+    bootstrapBrokers: ['localhost:9092'],
+  });
+  await producer.send({ messages: [{ topic: 'orders', value: Buffer.from('hello') }] });
+  await producer.close();
 }}
 ```
 

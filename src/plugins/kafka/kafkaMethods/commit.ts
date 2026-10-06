@@ -1,7 +1,7 @@
 import * as utils from '../../../utils';
 import * as constants from './kafkaConstants';
 import { KafkaMethodContext, KafkaMethodResult } from './kafkaMethodContext';
-import { getRequiredGroupId, getTopicPartitionOffsets, withTemporaryConsumer } from './kafkaUtils';
+import { alterGroupOffsets, getRequiredGroupId, getTopicPartitionOffsets } from './kafkaUtils';
 
 export async function commit({ session, request, onMessage }: KafkaMethodContext): Promise<KafkaMethodResult> {
   const groupId = getRequiredGroupId(request, 'commit');
@@ -10,10 +10,21 @@ export async function commit({ session, request, onMessage }: KafkaMethodContext
 
   let mode: string;
   if (activeConsumer) {
-    await activeConsumer.commitOffsets(offsets);
+    if (offsets) {
+      await activeConsumer.consumer.commit({
+        offsets: offsets.map(offset => ({
+          ...offset,
+          offset: BigInt(offset.offset),
+          leaderEpoch:
+            activeConsumer.latestMessages.get(`${offset.topic}:${offset.partition}`)?.leaderEpoch ?? -1,
+        })),
+      });
+    } else {
+      await Promise.all([...activeConsumer.latestMessages.values()].map(message => message.commit()));
+    }
     mode = offsets ? 'active consumer' : 'active consumer (consumed offsets)';
   } else if (offsets && offsets.length > 0) {
-    await withTemporaryConsumer(session, groupId, consumer => consumer.commitOffsets(offsets));
+    await alterGroupOffsets(session, groupId, offsets);
     mode = 'group';
   } else {
     throw new Error(

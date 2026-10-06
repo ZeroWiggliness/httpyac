@@ -32,7 +32,7 @@ completionItemProvider.requestHeaderProvider.push(request => {
       { name: constants.KafkaPassword, description: 'SASL password' },
       {
         name: `${constants.KafkaConfigPrefix}`,
-        description: 'librdkafka configuration property, e.g. kafka_config_ssl.ca.location',
+        description: 'supported Platformatic Kafka option, e.g. kafka_config_ssl.ca.location',
       }
     );
 
