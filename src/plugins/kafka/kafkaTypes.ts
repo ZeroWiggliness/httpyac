@@ -1,7 +1,4 @@
-/**
- * Minimal structural typings of the KafkaJS compatible API of @confluentinc/kafka-javascript.
- * The library is an optional (native) dependency, so it must not be required for type checking.
- */
+/** Minimal structural typings for the optional @platformatic/kafka dependency. */
 export type KafkaHeaderValue = Buffer | string | Array<Buffer | string> | undefined;
 
 export interface KafkaMessageHeaders {
@@ -17,32 +14,50 @@ export interface KafkaProducerMessage {
 }
 
 export interface KafkaRecordMetadata {
-  topicName: string;
+  topic: string;
   partition: number;
-  errorCode: number;
-  offset?: string;
-  timestamp?: string;
-  baseOffset?: string;
+  offset: bigint;
+}
+
+export interface KafkaPlatformaticMessage {
+  topic: string;
+  key?: Buffer | null;
+  value: Buffer | null;
+  partition?: number;
+  timestamp?: bigint;
+  headers?: Map<Buffer, Buffer>;
 }
 
 export interface KafkaProducer {
-  connect(): Promise<void>;
-  disconnect(): Promise<void>;
-  send(record: { topic: string; messages: Array<KafkaProducerMessage> }): Promise<Array<KafkaRecordMetadata>>;
+  close(): Promise<void>;
+  send(options: {
+    messages: Array<KafkaPlatformaticMessage>;
+    acks?: number;
+    compression?: string;
+  }): Promise<{ offsets?: Array<KafkaRecordMetadata> }>;
 }
 
 export interface KafkaConsumedMessage {
+  topic: string;
+  partition: number;
   key: Buffer | null;
   value: Buffer | null;
-  timestamp: string;
-  offset: string;
-  headers?: KafkaMessageHeaders;
+  timestamp: bigint;
+  offset: bigint;
+  leaderEpoch: number;
+  headerEntries: Array<[Buffer | null, Buffer | null]>;
+  commit(): Promise<void>;
 }
 
 export interface KafkaEachMessagePayload {
   topic: string;
   partition: number;
   message: KafkaConsumedMessage;
+}
+
+export interface KafkaMessageStream extends AsyncIterable<KafkaConsumedMessage> {
+  pause(): this;
+  close(): Promise<void>;
 }
 
 export interface KafkaTopicPartitionOffset {
@@ -52,30 +67,41 @@ export interface KafkaTopicPartitionOffset {
 }
 
 export interface KafkaConsumer {
-  connect(): Promise<void>;
-  disconnect(): Promise<void>;
-  subscribe(subscription: { topics: Array<string> }): Promise<void>;
-  run(config: { eachMessage: (payload: KafkaEachMessagePayload) => Promise<void> }): Promise<void>;
-  commitOffsets(topicPartitions?: Array<KafkaTopicPartitionOffset>): Promise<void>;
-  seek(topicPartitionOffset: KafkaTopicPartitionOffset): void;
-  pause(topics: Array<{ topic: string; partitions?: Array<number> }>): unknown;
+  consume(options: Record<string, unknown>): Promise<KafkaMessageStream>;
+  commit(options: {
+    offsets: Array<{ topic: string; partition: number; offset: bigint; leaderEpoch: number }>;
+  }): Promise<void>;
+  close(force?: boolean): Promise<void>;
 }
 
-export interface KafkaClient {
-  producer(config?: Record<string, unknown>): KafkaProducer;
-  consumer(config: Record<string, unknown>): KafkaConsumer;
-}
-
-export interface KafkaJSModule {
-  Kafka: new (config: Record<string, unknown>) => KafkaClient;
+export interface KafkaAdmin {
+  alterConsumerGroupOffsets(options: {
+    groupId: string;
+    topics: Array<{ name: string; partitionOffsets: Array<{ partition: number; offset: bigint }> }>;
+  }): Promise<void>;
+  close(): Promise<void>;
 }
 
 export interface KafkaModule {
-  KafkaJS: KafkaJSModule;
+  Producer: new (config: Record<string, unknown>) => KafkaProducer;
+  Consumer: new (config: Record<string, unknown>) => KafkaConsumer;
+  Admin: new (config: Record<string, unknown>) => KafkaAdmin;
+  cooperativeStickyAssigner?: unknown;
+  roundRobinAssigner?: unknown;
+}
+
+export interface KafkaActiveConsumer {
+  consumer: KafkaConsumer;
+  stream: KafkaMessageStream;
+  topics: Array<string>;
+  latestMessages: Map<string, KafkaConsumedMessage>;
+  seek(offsets: Array<KafkaTopicPartitionOffset>): Promise<void>;
+  stop(): Promise<void>;
 }
 
 export interface KafkaSession {
-  kafka: KafkaClient;
+  kafka: KafkaModule;
+  config: Record<string, unknown>;
   producers: Map<string, Promise<KafkaProducer>>;
-  consumers: Map<string, KafkaConsumer>;
+  consumers: Map<string, KafkaActiveConsumer>;
 }

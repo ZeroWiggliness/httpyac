@@ -1,5 +1,5 @@
 import * as utils from '../../../utils';
-import { KafkaProducerMessage } from '../kafkaTypes';
+import { KafkaPlatformaticMessage } from '../kafkaTypes';
 import * as constants from './kafkaConstants';
 import { KafkaMethodContext, KafkaMethodResult } from './kafkaMethodContext';
 import { fromKafkaMessageHeaders, getProducer, getTopics, toKafkaMessageHeaders, warn } from './kafkaUtils';
@@ -16,25 +16,27 @@ export async function produce({ session, request, onMessage }: KafkaMethodContex
   }
   const key = utils.getHeaderString(request.headers, constants.KafkaKey);
   const headers = toKafkaMessageHeaders(request);
-  const message: KafkaProducerMessage = {
-    value: utils.toBufferLike(request.body) ?? null,
-    key,
+  const value = utils.toBufferLike(request.body);
+  const message: KafkaPlatformaticMessage = {
+    topic: '',
+    value: typeof value === 'string' ? Buffer.from(value) : value ?? null,
+    key: key === undefined ? undefined : Buffer.from(key),
     partition: utils.getHeaderNumber(request.headers, constants.KafkaPartition),
-    timestamp: utils.getHeaderString(request.headers, constants.KafkaTimestamp),
-    headers,
+    timestamp: toTimestamp(utils.getHeaderString(request.headers, constants.KafkaTimestamp)),
+    headers: toPlatformaticMessageHeaders(headers),
   };
 
   const producer = await getProducer(session, request);
   for (const topic of topics) {
-    // the library mutates the message on send, so every topic needs its own copy
-    const [metadata] = await producer.send({
-      topic,
-      messages: [{ ...message, headers: headers && { ...headers } }],
+    const result = await producer.send({
+      messages: [{ ...message, topic }],
+      acks: utils.getHeaderNumber(request.headers, constants.KafkaAcks),
+      compression: getCompression(request),
     });
+    const metadata = result.offsets?.find(obj => obj.topic === topic);
     const partition = metadata?.partition ?? message.partition;
-    const offset = metadata?.offset ?? metadata?.baseOffset;
-    // the delivery report returns timestamp 0, if the broker does not use LogAppendTime
-    const timestamp = Number(metadata?.timestamp) > 0 ? metadata?.timestamp : message.timestamp;
+    const offset = metadata?.offset.toString();
+    const timestamp = utils.getHeaderString(request.headers, constants.KafkaTimestamp);
     onMessage(topic, {
       protocol: 'KAFKA',
       name: `KAFKA produce ${topic}`,
@@ -65,4 +67,35 @@ export async function produce({ session, request, onMessage }: KafkaMethodContex
     });
   }
   return {};
+}
+
+function toTimestamp(timestamp: string | undefined): bigint | undefined {
+  if (!timestamp) {
+    return undefined;
+  }
+  if (!/^\d+$/u.test(timestamp)) {
+    throw new Error(`${constants.KafkaTimestamp} must be a non-negative integer (value: ${timestamp})`);
+  }
+  return BigInt(timestamp);
+}
+
+function toPlatformaticMessageHeaders(headers: ReturnType<typeof toKafkaMessageHeaders>) {
+  if (!headers) {
+    return undefined;
+  }
+  const result = new Map<Buffer, Buffer>();
+  for (const [key, value] of Object.entries(headers)) {
+    const values = Array.isArray(value) ? value : [value];
+    for (const headerValue of values) {
+      if (!utils.isUndefined(headerValue)) {
+        result.set(Buffer.from(key), Buffer.isBuffer(headerValue) ? headerValue : Buffer.from(headerValue));
+      }
+    }
+  }
+  return result;
+}
+
+function getCompression({ headers }: KafkaMethodContext['request']): string | undefined {
+  const compression = utils.getHeaderString(headers, constants.KafkaCompression)?.trim().toLowerCase();
+  return compression && compression !== 'none' ? compression : undefined;
 }

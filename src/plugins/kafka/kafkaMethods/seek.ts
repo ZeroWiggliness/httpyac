@@ -1,7 +1,7 @@
 import * as utils from '../../../utils';
 import * as constants from './kafkaConstants';
 import { KafkaMethodContext, KafkaMethodResult } from './kafkaMethodContext';
-import { getRequiredGroupId, getTopicPartitionOffsets, withTemporaryConsumer } from './kafkaUtils';
+import { alterGroupOffsets, getRequiredGroupId, getTopicPartitionOffsets } from './kafkaUtils';
 
 export async function seek({ session, request, onMessage }: KafkaMethodContext): Promise<KafkaMethodResult> {
   const groupId = getRequiredGroupId(request, 'seek');
@@ -12,13 +12,11 @@ export async function seek({ session, request, onMessage }: KafkaMethodContext):
   const activeConsumer = session.consumers.get(groupId);
   let mode: string;
   if (activeConsumer) {
-    for (const offset of offsets) {
-      activeConsumer.seek(offset);
-    }
+    await activeConsumer.seek(offsets);
     mode = 'seek';
   } else {
     // without an active consumer, the committed offset of the group is reset, so the next consume starts there
-    await withTemporaryConsumer(session, groupId, consumer => consumer.commitOffsets(offsets));
+    await alterGroupOffsets(session, groupId, offsets);
     mode = 'committed';
   }
   onMessage('seek', {

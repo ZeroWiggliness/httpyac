@@ -1,103 +1,123 @@
+import { randomUUID } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import { TestResultStatus } from '../../../models';
 import { initFileProvider, parseHttp, sendHttp, sendHttpFile } from '../../../test/testUtils';
 import { kafkaClientProvider } from '../kafkaClientProvider';
 import { fromKafkaMessageHeaders, getKafkaMethod, toKafkaMessageHeaders } from '../kafkaMethods';
 import { getKafkaConfig, parseBrokers } from '../kafkaRequestClient';
-import { KafkaEachMessagePayload, KafkaModule, KafkaProducerMessage, KafkaTopicPartitionOffset } from '../kafkaTypes';
+import { KafkaEachMessagePayload, KafkaModule, KafkaPlatformaticMessage } from '../kafkaTypes';
 
 interface MockConsumer {
   config: Record<string, unknown>;
+  consumeOptions: Record<string, unknown>;
   subscribed: Array<string>;
-  seeks: Array<KafkaTopicPartitionOffset>;
-  commits: Array<Array<KafkaTopicPartitionOffset> | undefined>;
+  seeks: Array<{ topic: string; partition: number; offset: bigint }>;
   disconnected: boolean;
-  running: boolean;
   paused: boolean;
   processed: Array<string>;
-  skipped: Array<string>;
+  committed: Array<string>;
 }
 
 function initKafkaMock(messages: Array<KafkaEachMessagePayload> = []) {
   const mock = {
     configs: [] as Array<Record<string, unknown>>,
-    sent: [] as Array<{ topic: string; messages: Array<KafkaProducerMessage> }>,
-    producerConfigs: [] as Array<Record<string, unknown> | undefined>,
+    sent: [] as Array<{ topic: string; messages: Array<KafkaPlatformaticMessage>; acks?: number }>,
     consumers: [] as Array<MockConsumer>,
+    adminCommits: [] as Array<{
+      groupId: string;
+      topics: Array<{ name: string; partitionOffsets: Array<{ partition: number; offset: bigint }> }>;
+    }>,
+    adminConfigs: [] as Array<Record<string, unknown>>,
   };
   const kafkaModule: KafkaModule = {
-    KafkaJS: {
-      Kafka: class {
-        constructor(config: Record<string, unknown>) {
-          mock.configs.push(config);
-        }
-        producer(config?: Record<string, unknown>) {
-          mock.producerConfigs.push(config);
-          return {
-            connect: async () => undefined,
-            disconnect: async () => undefined,
-            send: async (record: { topic: string; messages: Array<KafkaProducerMessage> }) => {
-              mock.sent.push(structuredClone(record));
-              // simulate the library, which converts the headers in place
-              for (const message of record.messages) {
-                if (Array.isArray(message.headers)) {
-                  throw new Error('Header value must be a string or buffer');
-                }
-                message.headers = Object.entries(message.headers || {}).map(([key, value]) => ({
-                  [key]: value,
-                })) as never;
-              }
-              return [{ topicName: record.topic, partition: 0, errorCode: 0, offset: `${mock.sent.length - 1}` }];
-            },
-          };
-        }
-        consumer(config: Record<string, unknown>) {
-          const state: MockConsumer = {
-            config,
-            subscribed: [],
-            seeks: [],
-            commits: [],
-            disconnected: false,
-            running: false,
-            paused: false,
-            processed: [],
-            skipped: [],
-          };
-          mock.consumers.push(state);
-          return {
-            connect: async () => undefined,
-            disconnect: async () => {
-              state.disconnected = true;
-            },
-            subscribe: async ({ topics }: { topics: Array<string> }) => {
-              state.subscribed.push(...topics);
-            },
-            run: async ({ eachMessage }: { eachMessage: (payload: KafkaEachMessagePayload) => Promise<void> }) => {
-              state.running = true;
-              setImmediate(async () => {
-                for (const message of messages) {
-                  // like the library, only a resolved eachMessage marks the offset as processed
-                  try {
-                    await eachMessage(message);
-                    state.processed.push(message.message.offset);
-                  } catch {
-                    state.skipped.push(message.message.offset);
-                  }
-                }
-              });
-            },
-            pause: () => {
-              state.paused = true;
-            },
-            commitOffsets: async (offsets?: Array<KafkaTopicPartitionOffset>) => {
-              state.commits.push(offsets);
-            },
-            seek: (offset: KafkaTopicPartitionOffset) => {
-              state.seeks.push(offset);
-            },
-          };
-        }
-      },
+    Producer: class {
+      constructor(config: Record<string, unknown>) {
+        mock.configs.push(config);
+      }
+      async close() {}
+      async send(options: { messages: Array<KafkaPlatformaticMessage>; acks?: number }) {
+        const records = options.messages;
+        const topic = records[0].topic;
+        mock.sent.push({
+          topic,
+          acks: options.acks,
+          messages: records.map(record => ({
+            ...record,
+            headers: record.headers && new Map(record.headers),
+          })),
+        });
+        return {
+          offsets: [{ topic, partition: records[0].partition ?? 0, offset: BigInt(mock.sent.length - 1) }],
+        };
+      }
     },
+    Consumer: class {
+      private readonly state: MockConsumer;
+      constructor(config: Record<string, unknown>) {
+        mock.configs.push(config);
+        this.state = {
+          config,
+          consumeOptions: {},
+          subscribed: [],
+          seeks: [],
+          disconnected: false,
+          paused: false,
+          processed: [],
+          committed: [],
+        };
+        mock.consumers.push(this.state);
+      }
+      async close() {
+        this.state.disconnected = true;
+      }
+      async commit() {}
+      async consume(options: Record<string, unknown>) {
+        this.state.consumeOptions = options;
+        this.state.subscribed.push(...(options.topics as Array<string>));
+        this.state.seeks.push(...((options.offsets as MockConsumer['seeks'] | undefined) || []));
+        const state = this.state;
+        return {
+          pause() {
+            state.paused = true;
+            return this;
+          },
+          async close() {
+            state.disconnected = true;
+          },
+          async *[Symbol.asyncIterator]() {
+            for (const item of messages) {
+              if (state.disconnected || state.paused) {
+                break;
+              }
+              state.processed.push(item.message.offset.toString());
+              yield {
+                ...item.message,
+                topic: item.topic,
+                partition: item.partition,
+                commit: async () => {
+                  state.committed.push(item.message.offset.toString());
+                  await item.message.commit();
+                },
+              };
+            }
+          },
+        };
+      }
+    },
+    Admin: class {
+      constructor(config: Record<string, unknown>) {
+        mock.adminConfigs.push(config);
+      }
+      async alterConsumerGroupOffsets(options: (typeof mock.adminCommits)[number]) {
+        mock.adminCommits.push(options);
+      }
+      async close() {}
+    },
+    cooperativeStickyAssigner: () => [],
+    roundRobinAssigner: () => [],
   };
   kafkaClientProvider.load = () => kafkaModule;
   return mock;
@@ -112,11 +132,20 @@ function createMessage(
     topic: 'orders',
     partition: 0,
     message: {
+      topic: 'orders',
+      partition: 0,
       key: Buffer.from(`key-${offset}`),
       value: Buffer.from(value),
-      offset,
-      timestamp: '1700000000000',
-      headers,
+      offset: BigInt(offset),
+      timestamp: 1700000000000n,
+      leaderEpoch: 0,
+      headerEntries: Object.entries(headers).flatMap(([key, headerValues]) =>
+        (Array.isArray(headerValues) ? headerValues : [headerValues]).map(headerValue => [
+          Buffer.from(key),
+          Buffer.isBuffer(headerValue) ? headerValue : Buffer.from(headerValue),
+        ])
+      ),
+      commit: async () => undefined,
     },
   };
 }
@@ -174,28 +203,41 @@ KAFKA 0 - produced
 
   describe('config', () => {
     it('should create connection config', () => {
-      const config = getKafkaConfig(
-        {
-          url: 'kafkas://broker:9093',
-          headers: {
-            kafka_client_id: 'test',
-            kafka_sasl_mechanism: 'SCRAM-SHA-256',
-            kafka_username: 'user',
-            kafka_password: 'secret',
-            'kafka_config_ssl.ca.location': '/tmp/ca.pem',
+      const caPath = path.join(os.tmpdir(), `httpyac-kafka-ca-${randomUUID()}.pem`);
+      fs.writeFileSync(caPath, 'certificate');
+      try {
+        const config = getKafkaConfig(
+          {
+            url: 'kafkas://broker:9093',
+            headers: {
+              kafka_client_id: 'test',
+              kafka_sasl_mechanism: 'SCRAM-SHA-256',
+              kafka_username: 'user',
+              kafka_password: 'secret',
+              'kafka_config_ssl.ca.location': caPath,
+            },
+            noRejectUnauthorized: true,
           },
-          noRejectUnauthorized: true,
-        },
-        {} as never
-      );
-      expect(config['ssl.ca.location']).toBe('/tmp/ca.pem');
-      expect(config['enable.ssl.certificate.verification']).toBe(false);
-      expect(config.kafkaJS).toMatchObject({
-        brokers: ['broker:9093'],
-        clientId: 'test',
-        ssl: true,
-        sasl: { mechanism: 'scram-sha-256', username: 'user', password: 'secret' },
-      });
+          {} as never
+        );
+        expect(config.bootstrapBrokers).toEqual(['broker:9093']);
+        expect(config.clientId).toBe('test');
+        expect(config.tls).toEqual({ ca: Buffer.from('certificate'), rejectUnauthorized: false });
+        expect(config.sasl).toEqual({ mechanism: 'SCRAM-SHA-256', username: 'user', password: 'secret' });
+      } finally {
+        fs.rmSync(caPath, { force: true });
+      }
+    });
+
+    it('should reject unsupported librdkafka settings', () => {
+      expect(() =>
+        getKafkaConfig({ url: 'localhost:9092', headers: { kafka_config_debug: 'broker' } }, {} as never)
+      ).toThrow('Unsupported kafka_config_ setting(s) for @platformatic/kafka: kafka_config_debug');
+    });
+
+    it('should not enable TLS for a plaintext connection when certificate validation is disabled globally', () => {
+      const config = getKafkaConfig({ url: 'localhost:9092', headers: {}, noRejectUnauthorized: true }, {} as never);
+      expect(config.tls).toBeUndefined();
     });
   });
 
@@ -257,19 +299,22 @@ content-type: application/json
 `,
         { id: 42, traceId: 'trace-1' }
       );
-      expect(mock.configs[0].kafkaJS).toMatchObject({ brokers: ['localhost:9092'], clientId: 'httpyac', ssl: false });
-      expect(mock.producerConfigs[0]).toEqual({ kafkaJS: { acks: 1 } });
+      expect(mock.configs[0]).toMatchObject({ bootstrapBrokers: ['localhost:9092'], clientId: 'httpyac' });
       expect(mock.sent.length).toBe(1);
+      expect(mock.sent[0].acks).toBe(1);
       expect(mock.sent[0].topic).toBe('orders');
       const message = mock.sent[0].messages[0];
+      expect(Buffer.isBuffer(message.value)).toBe(true);
       expect(message.value?.toString()).toBe('{ "id": 42 }');
-      expect(message.key).toBe('order-42');
+      expect(Buffer.isBuffer(message.key)).toBe(true);
+      expect(message.key?.toString()).toBe('order-42');
       expect(message.partition).toBe(2);
-      expect(message.headers).toEqual({
-        traceId: 'trace-1',
-        tag: ['a', 'b'],
-        'content-type': 'application/json',
-      });
+      expect([...message.headers!.entries()].map(([key, value]) => [key.toString(), value.toString()])).toEqual([
+        ['traceId', 'trace-1'],
+        ['tag', 'a'],
+        ['tag', 'b'],
+        ['content-type', 'application/json'],
+      ]);
 
       expect(responses.length).toBe(1);
       expect(responses[0].protocol).toBe('KAFKA');
@@ -277,7 +322,7 @@ content-type: application/json
       expect(responses[0].headers).toMatchObject({
         traceId: 'trace-1',
         kafka_topic: 'orders',
-        kafka_partition: 0,
+        kafka_partition: 2,
         kafka_offset: '0',
         kafka_key: 'order-42',
       });
@@ -301,11 +346,13 @@ hello
         httpFile,
         config: { defaultHeaders: { Accept: 'application/json' } },
       });
-      expect(mock.sent[0].messages[0].headers).toEqual({
-        Accept: 'application/json',
-        'User-Agent': 'my-agent',
-        tenant: 'acme',
-      });
+      expect(
+        [...mock.sent[0].messages[0].headers!.entries()].map(([key, value]) => [key.toString(), value.toString()])
+      ).toEqual([
+        ['User-Agent', 'my-agent'],
+        ['tenant', 'acme'],
+        ['Accept', 'application/json'],
+      ]);
     });
 
     it('should not send implicit httpyac headers', async () => {
@@ -331,7 +378,11 @@ traceId: abc
 hello
 `);
       expect(mock.sent.map(obj => obj.topic)).toEqual(['orders', 'audit']);
-      expect(mock.sent.map(obj => obj.messages[0].headers)).toEqual([{ traceId: 'abc' }, { traceId: 'abc' }]);
+      expect(
+        mock.sent.map(obj =>
+          [...obj.messages[0].headers!.entries()].map(([key, value]) => [key.toString(), value.toString()])
+        )
+      ).toEqual([[['traceId', 'abc']], [['traceId', 'abc']]]);
       expect(responses[0].statusCode).toBe(0);
     });
   });
@@ -361,19 +412,22 @@ kafka_max_messages: 1
 
       expect(mock.consumers.length).toBe(1);
       const consumer = mock.consumers[0];
-      expect(consumer.config).toEqual({
-        kafkaJS: {
-          groupId: 'test-group',
-          fromBeginning: true,
-          autoCommit: true,
-          partitionAssigners: ['cooperative-sticky'],
-        },
+      expect(consumer.config).toMatchObject({
+        groupId: 'test-group',
+        autocommit: false,
+        partitionAssigner: expect.any(Function),
+      });
+      expect(consumer.consumeOptions).toMatchObject({
+        topics: ['orders'],
+        mode: 'committed',
+        fallbackMode: 'earliest',
+        autocommit: false,
       });
       expect(consumer.subscribed).toEqual(['orders']);
       expect(consumer.disconnected).toBe(true);
       expect(consumer.paused).toBe(true);
       expect(consumer.processed).toEqual(['5']);
-      expect(consumer.skipped).toEqual(['6']);
+      expect(consumer.committed).toEqual(['5']);
 
       expect(responses.length).toBe(1);
       expect(responses[0].body).toBe('{"id":1}');
@@ -418,8 +472,8 @@ kafka_topic: orders
 kafka_config_group.protocol: consumer
 kafka_timeout: 10
 `);
-      expect(mock.configs[0]['group.protocol']).toBe('consumer');
-      expect((mock.consumers[0].config.kafkaJS as Record<string, unknown>).partitionAssigners).toBeUndefined();
+      expect(mock.configs[0].groupProtocol).toBe('consumer');
+      expect(mock.consumers[0].config.partitionAssigner).toBeUndefined();
     });
 
     it('should seek before consume and stop after timeout', async () => {
@@ -433,13 +487,24 @@ kafka_offset: 10
 kafka_timeout: 50
 `);
       const consumer = mock.consumers[0];
-      expect(`${consumer.config.kafkaJS && (consumer.config.kafkaJS as Record<string, unknown>).groupId}`).toMatch(
-        /^httpyac-/u
-      );
-      expect(consumer.seeks).toEqual([{ topic: 'orders', partition: 1, offset: '10' }]);
+      expect(`${consumer.config.groupId}`).toMatch(/^httpyac-/u);
+      expect(consumer.seeks).toEqual([{ topic: 'orders', partition: 1, offset: 10n }]);
+      expect(consumer.consumeOptions.mode).toBe('manual');
       expect(consumer.disconnected).toBe(true);
       expect(responses.length).toBe(1);
       expect(responses[0].statusMessage).toBe('no messages received');
+    });
+
+    it('should auto-commit only delivered messages on the configured interval', async () => {
+      initFileProvider();
+      const mock = initKafkaMock([createMessage('5', 'message')]);
+      await sendHttp(`
+KAFKA localhost:9092
+kafka_topic: orders
+kafka_auto_commit_interval: 100
+kafka_timeout: 250
+`);
+      expect(mock.consumers[0].committed).toContain('5');
     });
   });
 
@@ -455,10 +520,12 @@ kafka_topic: orders
 kafka_partition: 0
 kafka_offset: 7
 `);
-      expect(mock.consumers.length).toBe(1);
-      expect(mock.consumers[0].config).toEqual({ kafkaJS: { groupId: 'test-group', autoCommit: false } });
-      expect(mock.consumers[0].commits).toEqual([[{ topic: 'orders', partition: 0, offset: '7' }]]);
-      expect(mock.consumers[0].disconnected).toBe(true);
+      expect(mock.adminCommits).toEqual([
+        {
+          groupId: 'test-group',
+          topics: [{ name: 'orders', partitionOffsets: [{ partition: 0, offset: 7n }] }],
+        },
+      ]);
       expect(responses[0].statusCode).toBe(0);
       expect(responses[0].statusMessage).toBe('committed');
     });
@@ -486,8 +553,15 @@ kafka_method: seek
 kafka_group_id: test-group
 kafka_topic: orders
 kafka_offset: 3
+kafka_config_group.protocol: consumer
 `);
-      expect(mock.consumers[0].commits).toEqual([[{ topic: 'orders', partition: 0, offset: '3' }]]);
+      expect(mock.adminConfigs[0].groupProtocol).toBeUndefined();
+      expect(mock.adminCommits).toEqual([
+        {
+          groupId: 'test-group',
+          topics: [{ name: 'orders', partitionOffsets: [{ partition: 0, offset: 3n }] }],
+        },
+      ]);
       expect(responses[0].statusMessage).toBe('committed');
     });
 
