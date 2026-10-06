@@ -1,3 +1,14 @@
+## v6.18.0
+
+### Features
+* Adds comparing body to file contents. ([#12](https://github.com/ZeroWiggliness/httpyac/issues/12)) ([1e674cb](https://github.com/ZeroWiggliness/httpyac/commit/1e674cbd6606e8da94fd47561ddd4ebec03c24fb))
+
+### Bug Fixes
+* *(refactor)* update Kafka integration to use Platformatic types and impr… ([#15](https://github.com/ZeroWiggliness/httpyac/issues/15)) ([2ff1a1f](https://github.com/ZeroWiggliness/httpyac/commit/2ff1a1f61937c2a996ae9f59614d554ed0d21dea))
+
+---
+_Generated on 2026-10-06_
+
 ## v6.17.0
 
 ### Features
