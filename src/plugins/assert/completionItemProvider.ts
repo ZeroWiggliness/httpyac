@@ -30,6 +30,14 @@ completionItemProvider.emptyLineProvider.push(() => [
     description: 'Body assert',
   },
   {
+    name: '?? body matchesFile',
+    description: 'Body equals content of file (--trim, --ignoreLineEndings)',
+  },
+  {
+    name: '?? body matchesJsonFile',
+    description: 'Body equals JSON of file (--ignoreLineEndings)',
+  },
+  {
     name: '?? header',
     description: 'Header assert',
   },

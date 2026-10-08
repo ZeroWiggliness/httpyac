@@ -18,6 +18,8 @@ export const predicates: Array<p.TestPredicate> = [
   new p.LowerEqualsPredicate(),
   new p.LowerPredicate(),
   new p.MatchesPredicate(),
+  new p.MatchesFilePredicate(),
+  new p.MatchesJsonFilePredicate(),
   new p.NotEqualsPredicate(),
   new p.StartsWithPredicate(),
   new p.SHA256Predicate(),
@@ -40,6 +42,9 @@ export async function parseAssertLine(
         prev.push(...curr.id);
         return prev;
       }, [] as Array<string>)
+      // longest first, so that e.g. `matches` does not shadow `matchesFile`
+      .sort((a, b) => b.length - a.length)
+      .map(id => id.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'))
       .join('|');
     const regex = `^\\s*\\?\\?\\s*(?<type>[^\\s]*)(\\s+(?<value>.*))?\\s+(?<predicate>(${idRegex}))\\s*(?<expected>.*)\\s*$`;
     const match = new RegExp(regex, 'iu').exec(textLine);
@@ -63,8 +68,19 @@ export async function parseAssertLine(
               testResult.message = `${valueString || type} ${predicate.id[0]} ${expected}`;
             }
             const expectedConverted = predicate.noAutoConvert ? expected : convertToType(value, expected);
+            const result = await predicate.match(value, expectedConverted, context);
+            if (typeof result !== 'boolean' && !result.valid && result.message) {
+              // set directly, because parseError would mangle multi-line messages
+              testResult.status = models.TestResultStatus.FAILED;
+              testResult.error = {
+                error: new Error(result.message),
+                displayMessage: result.message,
+                message: result.message,
+              };
+              return;
+            }
             ok(
-              predicate.match(value, expectedConverted),
+              typeof result === 'boolean' ? result : result.valid,
               `${valueString || type} (${value}) ${predicate.id[0]} ${utils.toString(expectedConverted) || ''}`.trim()
             );
           });

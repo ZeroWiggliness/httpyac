@@ -11,6 +11,8 @@ export * from './isNumberPredicate';
 export * from './isStringPredicate';
 export * from './lowerEqualsPredicate';
 export * from './lowerPredicate';
+export * from './matchesFilePredicate';
+export * from './matchesJsonFilePredicate';
 export * from './matchesPredicate';
 export * from './md5Predicate';
 export * from './notEqualsPredicate';

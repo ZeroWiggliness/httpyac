@@ -10,6 +10,7 @@ export interface SendOptions {
   env?: Array<string>;
   all?: boolean;
   bail?: boolean;
+  color?: boolean;
   filter?: SendFilterOptions;
   help?: boolean;
   line?: number;

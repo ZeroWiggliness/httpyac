@@ -23,6 +23,8 @@ async function build() {
     sourcemap: true,
     target: 'node14',
     plugins: noExternal ? [] : [makeAllPackagesExternalPlugin],
+    // optional ESM dependency, which must not be bundled
+    external: ['@platformatic/kafka'],
   };
 
   if (isWatchBuild) {

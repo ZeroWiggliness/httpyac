@@ -89,6 +89,8 @@ Options:
   -h, --help                display help for command
 ```
 
+CLI output uses terminal colors when supported. Use `--no-color` for plain-text output.
+
 ## Example
 
 ```http
@@ -101,6 +103,43 @@ Authorization: Basic {{user}} {{password}}
 ```
 
 See the [wiki documentation](docs/wiki/Home.md) for the full guide, including ZW edition features. The original guide and examples are at [httpyac.github.io](https://httpyac.github.io/guide/) ([examples](https://httpyac.github.io/guide/examples)).
+
+### Kafka
+
+```http
+KAFKA localhost:9092
+kafka_topic: orders
+kafka_key: order-1
+traceId: {{$uuid}}
+content-type: application/json
+
+{ "id": 1 }
+
+###
+KAFKA localhost:9092
+kafka_topic: orders
+kafka_group_id: order-check
+kafka_from_beginning: true
+kafka_max_messages: 1
+kafka_timeout: 10000
+
+?? header traceId exists
+?? body id == 1
+```
+
+Headers without the `kafka_` prefix are sent as Kafka message headers, and consumed message headers are available as response headers. See the [Kafka guide](docs/kafka.md) for all methods and options.
+
+### File matching assertions
+
+Compare a response body or selected value with an expected file:
+
+```http
+GET https://httpbin.org/json
+
+?? body matchesJsonFile ./expected/response.json
+```
+
+Use `matchesFile` for exact text comparison. See the [file-matching guide](docs/file-matching.md) for options and examples.
 
 ## License
 
