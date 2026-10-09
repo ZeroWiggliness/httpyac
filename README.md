@@ -9,10 +9,11 @@ This edition is based on the fantastic work of the original author, [Andreas Web
 ### ZW edition updates
 
 - Added `QUERY` request method support.
-- Added [Kafka](docs/kafka.md) support: produce, consume, commit and seek, including setting and reading Kafka message headers.
-- Added [file-matching assertions](docs/file-matching.md) for comparing response content with text or JSON files.
+- Added Kafka support: produce, consume, commit and seek. See the [Kafka guide](docs/wiki/Guide-Kafka.md).
+- Added file comparison asserts `matchesFile` and `matchesJsonFile`. See [Assert](docs/wiki/Guide-Assert.md).
+- Reworked the Server-Sent Events client and included upstream fixes that were never released to npm. See [ZW edition differences](docs/wiki/ZW-Edition-Differences.md).
 
-> httpyac CLI provides a command line interface to execute _.http and _.rest files. This can be used to quickly execute a single \*.http file, but also to execute all files in a folder. httpyac supports HTTP, Rest, GraphQL, WebSocket, gRPC, MQTT, AMQP and Kafka Requests
+> httpyac CLI provides a command line interface to execute _.http and _.rest files. This can be used to quickly execute a single \*.http file, but also to execute all files in a folder. httpyac supports HTTP, Rest, GraphQL, WebSocket, gRPC, Server-Sent Events, MQTT, AMQP and Kafka Requests
 
 <p align="center">
 <a href="https://httpyac.github.io/">
@@ -101,7 +102,7 @@ Authorization: Basic {{user}} {{password}}
 
 ```
 
-more [examples](https://httpyac.github.io/guide/examples) and [guide](https://httpyac.github.io/guide/)
+See the [wiki documentation](docs/wiki/Home.md) for the full guide, including ZW edition features. The original guide and examples are at [httpyac.github.io](https://httpyac.github.io/guide/) ([examples](https://httpyac.github.io/guide/examples)).
 
 ### Kafka
 

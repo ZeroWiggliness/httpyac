@@ -1,0 +1,1 @@
+HttpYac (ZW edition): [ZeroWiggliness/httpyac](https://github.com/ZeroWiggliness/httpyac) | MIT License | Based on [httpyac](https://github.com/AnWeber/httpyac) and its [documentation](https://github.com/httpyac/httpyac.github.io), Copyright © 2020-present [Andreas Weber](https://github.com/AnWeber)
