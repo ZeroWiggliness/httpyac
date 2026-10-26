@@ -25,7 +25,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Run Another Release Please
-        uses: ZeroWiggliness/another-release-please-action@v0.2.2
+        uses: ZeroWiggliness/another-release-please-action@v0.2.3
         with:
           command: release,release-pr
           token: ${{ secrets.ARP_TOKEN }}
