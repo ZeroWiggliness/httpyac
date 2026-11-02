@@ -1,5 +1,5 @@
 import { filesize } from 'filesize';
-import { CancelError, default as got, OptionsOfUnknownResponseBody, Response } from 'got';
+import got, { AbortError, type OptionsOfUnknownResponseBodyWrapped, type PlainResponse } from 'got';
 import { HttpProxyAgent } from 'http-proxy-agent';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import merge from 'lodash/merge';
@@ -20,7 +20,7 @@ export async function gotHttpClient(
     const response = await cancelableRequest;
     return toHttpResponse(response, request);
   } catch (err) {
-    if (err instanceof CancelError) {
+    if (err instanceof AbortError) {
       return false;
     }
     throw err;
@@ -30,15 +30,16 @@ export async function gotHttpClient(
 export function getClientOptions(
   request: models.HttpRequest,
   context: models.HttpClientContext
-): OptionsOfUnknownResponseBody {
+): OptionsOfUnknownResponseBodyWrapped {
   const { config } = context;
 
-  const options: OptionsOfUnknownResponseBody = merge(
+  const options: OptionsOfUnknownResponseBodyWrapped = merge(
     {
       decompress: true,
-      retry: 0,
+      retry: { limit: 0 },
       throwHttpErrors: false,
       allowGetBody: true,
+      resolveBodyOnly: false,
     },
     config?.request,
     {
@@ -49,6 +50,7 @@ export function getClientOptions(
     },
     request.options
   );
+  options.resolveBodyOnly = false;
 
   if (request.noRedirect) {
     options.followRedirect = false;
@@ -72,7 +74,7 @@ export function createProxyAgents(proxy: string) {
   return { http: new HttpProxyAgent(proxy), https: new HttpsProxyAgent(proxy) };
 }
 
-function initProxy(options: OptionsOfUnknownResponseBody, proxy: string | undefined) {
+function initProxy(options: OptionsOfUnknownResponseBodyWrapped, proxy: string | undefined) {
   if (proxy) {
     options.agent = createProxyAgents(proxy);
   }
@@ -93,7 +95,7 @@ function ensureStringHeaders(headers?: Record<string, unknown>) {
   }
 }
 
-export function toHttpResponse(response: Response<unknown>, request: models.Request) {
+export function toHttpResponse(response: PlainResponse, request: models.Request) {
   return {
     name: `${response.statusCode} - ${request.method || 'GET'} ${request.url}`,
     statusCode: response.statusCode,
@@ -101,9 +103,9 @@ export function toHttpResponse(response: Response<unknown>, request: models.Requ
     statusMessage: response.statusMessage,
     body: response.body,
     rawHeaders: response.rawHeaders,
-    rawBody: response.rawBody,
+    rawBody: response.rawBody && Buffer.from(response.rawBody),
     headers: response.headers,
-    timings: response.timings.phases,
+    timings: response.timings?.phases,
     httpVersion: response.httpVersion,
     request: {
       protocol: 'HTTP',
