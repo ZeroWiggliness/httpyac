@@ -32,6 +32,7 @@ export function getClientOptions(
   context: models.HttpClientContext
 ): OptionsOfUnknownResponseBodyWrapped {
   const { config } = context;
+  const configTimeout = config?.request?.timeout;
 
   const options: OptionsOfUnknownResponseBodyWrapped = merge(
     {
@@ -41,12 +42,15 @@ export function getClientOptions(
       allowGetBody: true,
       resolveBodyOnly: false,
     },
-    config?.request,
+    {
+      ...config?.request,
+      timeout: typeof configTimeout === 'number' ? { request: configTimeout } : configTimeout,
+    },
     {
       method: request.method,
       headers: request.headers,
       body: request.body,
-      timeout: request.timeout,
+      timeout: request.timeout === undefined ? undefined : { request: request.timeout },
     },
     request.options
   );
