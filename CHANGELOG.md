@@ -1,3 +1,13 @@
+## v6.18.1
+
+### Bug Fixes
+* *(e2e)* add end-to-end testing setup with WireMock and related configurations ([#45](https://github.com/ZeroWiggliness/httpyac/issues/45)) ([06caa16](https://github.com/ZeroWiggliness/httpyac/commit/06caa164c8f425d463963233b6162c58ce665c33))
+* add GitHub Actions workflow to publish wiki on push and release ([#37](https://github.com/ZeroWiggliness/httpyac/issues/37)) ([c940595](https://github.com/ZeroWiggliness/httpyac/commit/c9405952f660f4530cd96bfdce8e82fd7e385560))
+* expose Docker CLI on PATH ([#47](https://github.com/ZeroWiggliness/httpyac/issues/47)) ([fba88c1](https://github.com/ZeroWiggliness/httpyac/commit/fba88c17fd1d7cf7246160df8ed5e745da856b2e))
+
+---
+_Generated on 2026-11-05_
+
 ## v6.18.0
 
 ### Features
