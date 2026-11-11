@@ -4,7 +4,7 @@
   "license": "MIT",
   "publisher": "ZeroWiggliness",
   "description": "HTTP/REST CLI Client for *.http files",
-  "version": "6.18.0",
+  "version": "6.18.1",
   "homepage": "https://github.com/ZeroWiggliness/httpyac",
   "repository": {
     "type": "git",
