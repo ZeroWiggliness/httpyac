@@ -18,20 +18,9 @@ Use `{{` and `}}` to add JavaScript. A script before the request line runs befor
 @host = https://httpbin.org
 
 {{
-  const token = Buffer.from("demo:secret").toString("base64");
-  exports.authHeader = `Basic ${token}`;
+  exports.user = { id: 42, name: "Ada" };
 }}
-GET {{host}}/basic-auth/demo/secret
-Authorization: {{authHeader}}
-
-{{
-  test.status(200);
-  test("authenticated", () => {
-    if (!response.parsedBody.authenticated) {
-      throw new Error("expected authenticated response");
-    }
-  });
-}}
+GET {{host}}/users/{{user.id}}
 ```
 
 Keep the line break after `{{`. It distinguishes a script block from inline variable replacement such as `{{host}}`.

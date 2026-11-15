@@ -67,11 +67,6 @@ module.exports = {
 };
 ```
 
-```http
-GET {{host}}/me
-Authorization: basic {{user}} {{password}}
-```
-
 If `dev` is active, HttpYac merges `$shared` and `dev`. If no environment is active, it merges `$shared` and `$default`.
 
 ## Dotenv files
@@ -159,7 +154,7 @@ Private files are useful for secrets and override values from matching public fi
 }
 ```
 
-The `Security.Auth` section can be used by IntelliJ dynamic auth variables such as `{{$auth.token("keycloak")}}`; see [Guide-Variables](Guide-Variables#oauth-20-and-openid-connect).
+The `Security.Auth` section can be used by IntelliJ dynamic auth variables such as `{{$auth.token("keycloak")}}`; see [Authentication](Guide-Authentication#oauth-20-and-openid-connect).
 
 Search locations are the `HTTPYAC_ENV` directory, the configured `envDirName` directory at the project root, and the `.http` file directory plus its parents up to the project root.
 
