@@ -329,47 +329,7 @@ By default, variables created in one request region can be shared with later reg
 
 This is useful when repeated or parallel request execution should avoid accidental cross-region mutation.
 
-## OAuth2 variables
-
-OAuth2 is configured through variables, so the same values can come from `environments`, dotenv files, CLI `--var`, or normal `.http` variables. The default prefix is `oauth2`, and an `Authorization: oauth2` value starts the `client_credentials` flow unless another flow is named.
-
-```http
-@oauth2_tokenEndpoint = https://login.example.com/oauth/token
-@oauth2_clientId = demo
-@oauth2_clientSecret = secret
-@oauth2_scope = api.read
-
-GET {{baseUrl}}/private
-Authorization: oauth2
-```
-
-Supported variable names use `<prefix>_<name>` or nested object syntax such as `oauth2.tokenEndpoint`. If a custom prefix is used, missing values fall back to the `oauth2` prefix.
-
-| Name | Type | Description |
-| --- | --- | --- |
-| `authorizationEndpoint` | `string` | Authorization endpoint for browser-style flows. |
-| `deviceCodeEndpoint` | `string` | Device code endpoint. |
-| `tokenEndpoint` | `string` | Token endpoint. |
-| `clientId` | `string` | OAuth client ID. |
-| `clientSecret` | `string` | OAuth client secret. |
-| `responseType` | `string` | Response type for authorization flows. |
-| `responseMode` | `string` | Response mode for authorization flows. |
-| `audience` | `string \| string[]` | Audience value. |
-| `scope` | `string` | Space-separated scopes. |
-| `resource` | `string \| string[]` | Resource value. |
-| `username` | `string` | Username for password flow. |
-| `password` | `string` | Password for password flow. |
-| `proxy` | `string` | Proxy used for OAuth token requests. |
-| `subjectIssuer` | `string` | Subject issuer for token exchange. |
-| `redirectUri` | `URL` | Defaults to `http://localhost:3000/callback`. |
-| `keepAlive` | `boolean` | Defaults to `true`; refreshes cached tokens before expiry when possible. |
-| `useAuthorizationHeader` | `boolean` | Defaults to `true`; sends client credentials in a Basic authorization header. |
-| `useDeviceCodeClientSecret` | `boolean` | Includes the client secret in device code flow requests. |
-| `usePkce` | `boolean` | Enables PKCE for supported authorization flows. |
-| `serverPort` | `number` | Local callback server port. |
-| `interceptRequest` | `function` | Hook to modify OAuth token requests before sending. |
-
-OAuth2 token requests also honor `request.rejectUnauthorized` from the active config and host-matched `clientCertificates`.
+Authentication-specific configuration, OAuth2 variables, client certificates, and cookie handling are documented in [Authentication](Guide-Authentication).
 
 ## Request body variable injection
 

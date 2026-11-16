@@ -9,15 +9,15 @@
 
 **Language**
 - [Request](Guide-Request)
-- [Kafka](Guide-Kafka)
-- [Meta data](Guide-MetaData)
+- [Response](Guide-Response)
+- [Metadata](Guide-MetaData)
 - [Variables](Guide-Variables)
+- [Assert](Guide-Assert)
+- [Authentication](Guide-Authentication)
 - [Environments](Guide-Environments)
 - [Scripting](Guide-Scripting)
-- [Assert](Guide-Assert)
-- [Comment](Guide-Comment)
+- [Comments](Guide-Comment)
 - [Hooks](Guide-Hooks)
-- [Response](Guide-Response)
 - [Injected languages](Guide-Injected-Languages)
 - [Badges](Guide-Badges)
 

@@ -111,6 +111,6 @@ Assertions can check status, headers, cookies, body values, JSONPath and more. T
 - [Kafka](Guide-Kafka): ZW-only Kafka protocol
 - [Meta data](Guide-MetaData): `# @name`, `# @ref`, loops, proxies, TLS and more
 - [Variables](Guide-Variables) and [Environments](Guide-Environments)
-- [Scripting](Guide-Scripting), [Assert](Guide-Assert), and [Hooks](Guide-Hooks)
-- [Comment](Guide-Comment), [Response](Guide-Response), [Injected languages](Guide-Injected-Languages), and [Badges](Guide-Badges)
+- [Scripting](Guide-Scripting), [Assert](Guide-Assert), [Authentication](Guide-Authentication), and [Hooks](Guide-Hooks)
+- [Comments](Guide-Comment), [Response](Guide-Response), [Injected languages](Guide-Injected-Languages), and [Badges](Guide-Badges)
 - [Installation](Installation): CLI, VS Code and Docker
