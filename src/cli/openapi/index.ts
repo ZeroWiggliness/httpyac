@@ -2,11 +2,10 @@ import { Command } from 'commander';
 import { promises as fs } from 'fs';
 import { dirname, join, parse, resolve } from 'path';
 
-import { AuthenticationOptions } from './authentication';
 import { isObject, loadOpenApi, selectOperations } from './document';
-import { generateHttp } from './generate';
+import { generateHttp, GenerationOptions } from './generate';
 
-export interface OpenApiOptions extends AuthenticationOptions {
+export interface OpenApiOptions extends GenerationOptions {
   path?: string;
   output?: string;
   force?: boolean;
@@ -22,6 +21,7 @@ export function openapiCommand(): Command {
     )
     .option('-o, --output <file>', 'output http file (default: beside the specification)')
     .option('--force', 'replace an existing output file')
+    .option('--detailed-asserts', 'add detailed JavaScript response assertions alongside native assertions')
     .option('--auth <selection...>', 'security alternative(s): scheme, scheme+scheme, or none')
     .option('--auth-flow <selection...>', 'OAuth flow(s): flow or scheme=flow')
     .action(writeOpenApi);

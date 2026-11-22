@@ -103,7 +103,18 @@ export function sample(source: JsonObject, warn: Warn, seen = new Set<JsonObject
   }
 }
 
-export function schemaCheck(schema: unknown, value: string, warn: Warn, seen = new Set<JsonObject>()): string {
+interface NativeAssertions {
+  lines: string[];
+  path: string;
+}
+
+export function schemaCheck(
+  schema: unknown,
+  value: string,
+  warn: Warn,
+  seen = new Set<JsonObject>(),
+  native?: NativeAssertions
+): string {
   if (schema === true || schema === undefined) {
     return 'true';
   }
@@ -143,6 +154,8 @@ export function schemaCheck(schema: unknown, value: string, warn: Warn, seen = n
   } else if (schema.properties) {
     types = ['object'];
   }
+  const eligibleNative =
+    schema.nullable === true || types.includes('null') || schema.oneOf || schema.anyOf ? undefined : native;
   const typeChecks: Record<string, string> = {
     object: `(${value} !== null && typeof ${value} === "object" && !Array.isArray(${value}))`,
     array: `Array.isArray(${value})`,
@@ -153,21 +166,27 @@ export function schemaCheck(schema: unknown, value: string, warn: Warn, seen = n
     null: `${value} === null`,
   };
   if (types.length) {
-    checks.push(
-      `(${types
+    const predicates: Record<string, string> = { string: 'isString', boolean: 'isBoolean', array: 'isArray' };
+    const predicate = Object.hasOwn(predicates, String(types[0])) ? predicates[String(types[0])] : undefined;
+    if (eligibleNative?.path && types.length === 1 && predicate) {
+      eligibleNative.lines.push(`?? body ${eligibleNative.path} ${predicate}`);
+    } else {
+      const check = types
         .map(type => {
-          if (typeof type !== 'string' || !typeChecks[type]) {
+          if (typeof type !== 'string' || !Object.hasOwn(typeChecks, type)) {
             throw new Error(`Unsupported response schema type: ${String(type)}`);
           }
           return typeChecks[type];
         })
-        .join(' || ')})`
-    );
+        .join(' || ');
+      checks.push(types.length > 1 ? `(${check})` : check);
+    }
   }
   if (schema.properties || schema.required) {
     const properties = optionalObject(schema.properties, 'response properties');
     const required = array(schema.required, 'required');
     const propertyChecks: string[] = [];
+    const objectType = types.length === 1 && types[0] === 'object';
     for (const key of required) {
       if (typeof key !== 'string') {
         throw new Error('Required property names must be strings');
@@ -181,23 +200,46 @@ export function schemaCheck(schema: unknown, value: string, warn: Warn, seen = n
         continue;
       }
       const child = `${value}[${JSON.stringify(key)}]`;
-      propertyChecks.push(
-        `(!Object.hasOwn(${value}, ${JSON.stringify(key)}) || (${schemaCheck(property, child, warn, next)}))`
-      );
+      const childNative =
+        eligibleNative &&
+        types.length === 1 &&
+        types[0] === 'object' &&
+        required.includes(key) &&
+        /^[A-Za-z_$][\w$]*$/u.test(key)
+          ? { lines: eligibleNative.lines, path: eligibleNative.path ? `${eligibleNative.path}?.${key}` : key }
+          : undefined;
+      const check = schemaCheck(property, child, warn, next, childNative);
+      if (check !== 'true') {
+        propertyChecks.push(
+          objectType && required.includes(key)
+            ? `(${check})`
+            : `(!Object.hasOwn(${value}, ${JSON.stringify(key)}) || (${check}))`
+        );
+      }
     }
-    checks.push(
-      `(${value} === null || typeof ${value} !== "object" || Array.isArray(${value}) || (${propertyChecks.join(' && ') || 'true'}))`
-    );
+    if (propertyChecks.length) {
+      if (objectType) {
+        checks.push(...propertyChecks);
+      } else {
+        checks.push(
+          `(${value} === null || typeof ${value} !== "object" || Array.isArray(${value}) || (${propertyChecks.join(' && ')}))`
+        );
+      }
+    }
   }
   if (schema.items !== undefined) {
-    checks.push(
-      `(!Array.isArray(${value}) || ${value}.every(oasItem => ${schemaCheck(schema.items, 'oasItem', warn, next)}))`
-    );
+    const itemCheck = schemaCheck(schema.items, 'oasItem', warn, next);
+    if (itemCheck !== 'true') {
+      const every = `${value}.every(oasItem => (${itemCheck}))`;
+      checks.push(`(!Array.isArray(${value}) || ${every})`);
+    }
   }
   for (const key of ['allOf', 'anyOf', 'oneOf']) {
     const children = array(schema[key], key);
     if (children.length) {
-      const expressions = children.map(child => `(${schemaCheck(child, value, warn, next)})`);
+      const expressions = children.map(
+        child => `(${schemaCheck(child, value, warn, next, key === 'allOf' ? eligibleNative : undefined)})`
+      );
       checks.push(
         key === 'oneOf'
           ? `([${expressions.join(',')}].filter(Boolean).length === 1)`
@@ -206,7 +248,5 @@ export function schemaCheck(schema: unknown, value: string, warn: Warn, seen = n
     }
   }
   const expression = checks.length ? checks.join(' && ') : 'true';
-  return schema.nullable === true || types.includes('null')
-    ? `(${value} === null || (${expression}))`
-    : `(${expression})`;
+  return schema.nullable === true || types.includes('null') ? `(${value} === null || (${expression}))` : expression;
 }

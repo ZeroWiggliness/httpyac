@@ -1,4 +1,5 @@
 import { AuthenticationGenerator, AuthenticationOptions } from './authentication';
+import { getPackageVersion } from '../version';
 import {
   array,
   identifier,
@@ -23,11 +24,13 @@ interface Links {
   body?: Binding;
 }
 
-class UnsupportedLinkExpression extends Error {}
-
 export interface GenerationResult {
   content: string;
   warnings: string[];
+}
+
+export interface GenerationOptions extends AuthenticationOptions {
+  detailedAsserts?: boolean;
 }
 
 function parameters(operation: Operation): JsonObject[] {
@@ -51,76 +54,25 @@ function parameterVariable(operation: Operation, parameter: JsonObject): string 
   return identifier(`${operation.name}_${text(parameter.in)}_${text(parameter.name)}`);
 }
 
-function pointerExpression(value: string, pointer: string): string {
-  const keys = pointer
-    ? pointer
-        .slice(1)
-        .split('/')
-        .map(key => key.replace(/~1/gu, '/').replace(/~0/gu, '~'))
-    : [];
-  if (pointer && !pointer.startsWith('/')) {
-    throw new Error(`Invalid JSON Pointer in link: ${pointer}`);
-  }
-  return `(() => { let o = ${value}; for (const k of ${JSON.stringify(keys)}) { if (o === null || o === undefined || !Object.hasOwn(Object(o), k)) throw new Error("Missing OpenAPI link value: " + k); o = o[k]; } return o; })()`;
-}
-
-function runtimeExpression(binding: Binding): string {
+function directLinkExpression(binding: Binding, parameter?: JsonObject): string | undefined {
   const { source, value } = binding;
-  if (typeof value === 'string' && value.includes('{$')) {
-    const expressions = [...value.matchAll(/\{(\$[^{}]+)\}/gu)];
-    let offset = 0;
-    const parts: string[] = [];
-    for (const expression of expressions) {
-      parts.push(
-        JSON.stringify(value.slice(offset, expression.index)),
-        `String(${runtimeExpression({ source, value: expression[1] })})`
-      );
-      offset = expression.index + expression[0].length;
+  if (typeof value === 'string') {
+    const match = /^\$response\.body#\/([A-Za-z_$][\w$]*)$/u.exec(value);
+    if (match && (!parameter || match[1] === parameter.name)) {
+      return `${source.name}.${match[1]}`;
     }
-    parts.push(JSON.stringify(value.slice(offset)));
-    return `(${parts.join(' + ')})`;
-  }
-  if (typeof value !== 'string' || !value.startsWith('$')) {
-    return JSON.stringify(value);
-  }
-  const response = `$context.variables[${JSON.stringify(`${source.name}Response`)}]`;
-  const match = /^\$(request|response)\.body#(.*)$/u.exec(value);
-  if (match) {
-    const body =
-      match[1] === 'response'
-        ? `$context.variables[${JSON.stringify(source.name)}]`
-        : `(() => { const body = ${response}.request.body; return typeof body === "string" ? JSON.parse(body) : body; })()`;
-    return pointerExpression(body, match[2]);
-  }
-  const parameter = /^\$request\.(path|query)\.(.+)$/u.exec(value);
-  if (parameter) {
-    const definition = parameters(source).find(item => item.in === parameter[1] && item.name === parameter[2]);
-    if (!definition) {
-      throw new Error(`Unknown linked request parameter: ${value}`);
+    if (!parameter && value === '$response.body#') {
+      return source.name;
     }
-    return `$context.variables[${JSON.stringify(`${parameterVariable(source, definition)}_value`)}]`;
   }
-  const header = /^\$(request|response)\.header\.(.+)$/u.exec(value);
-  if (header) {
-    const headers = header[1] === 'request' ? `${response}.request.headers` : `${response}.headers`;
-    return `(() => { const entry = Object.entries(${headers} || {}).find(([key]) => key.toLowerCase() === ${JSON.stringify(header[2].toLowerCase())}); if (!entry) throw new Error("Missing linked header"); return entry[1]; })()`;
-  }
-  if (value === '$url') {
-    return `${response}.request.url`;
-  }
-  if (value === '$method') {
-    return JSON.stringify(source.method.toUpperCase());
-  }
-  if (value === '$statusCode') {
-    return `${response}.statusCode`;
-  }
-  throw new UnsupportedLinkExpression(`Unsupported OpenAPI link expression: ${value}`);
+  return undefined;
 }
 
 function findLinks(api: OpenApi, selected: Operation[], targetIndex: number, warn: Warn): Links {
   const target = selected[targetIndex];
   const result: Links = { parameters: new Map() };
   const conflicts = new Set<string>();
+  const seen = new Set<string>();
   for (const source of selected.slice(0, targetIndex)) {
     for (const link of responseLinks(source)) {
       const matches = linkTargets(api, selected, link);
@@ -134,26 +86,25 @@ function findLinks(api: OpenApi, selected: Operation[], targetIndex: number, war
       const bindings = optionalObject(link.parameters, 'link parameters');
       const add = (key: string, value: unknown) => {
         const binding = { source, value };
-        try {
-          runtimeExpression(binding);
-        } catch (error) {
-          if (!(error instanceof UnsupportedLinkExpression)) {
-            throw error;
-          }
-          warn(`${error.message}; edit ${target.name} ${key} manually`);
-          return;
-        }
         if (conflicts.has(key)) {
           return;
         }
-        if (key === '$body' ? result.body : result.parameters.has(key)) {
+        if (seen.has(key)) {
           conflicts.add(key);
           result.parameters.delete(key);
           if (key === '$body') {
             result.body = undefined;
           }
           warn(`Ambiguous link binding for ${target.name} ${key}; use an editable value`);
-        } else if (key === '$body') {
+          return;
+        }
+        seen.add(key);
+        const parameter = parameters(target).find(item => `${text(item.in)}:${text(item.name)}` === key);
+        if (!directLinkExpression(binding, parameter)) {
+          warn(`Unsupported or mismatched link for ${target.name} ${key}; using an editable OpenAPI value`);
+          return;
+        }
+        if (key === '$body') {
           result.body = binding;
         } else {
           result.parameters.set(key, binding);
@@ -260,7 +211,7 @@ function statusExpression(status: string): string {
     : `response.statusCode === ${Number(status)}`;
 }
 
-function assertions(operation: Operation, warn: Warn): string[] {
+function assertions(operation: Operation, warn: Warn, detailedAsserts: boolean): string[] {
   const responses = Object.entries(object(operation.operation.responses, 'responses'));
   for (const [status] of responses) {
     if (status !== 'default' && !/^[1-5](?:\d{2}|XX)$/u.test(status)) {
@@ -268,9 +219,16 @@ function assertions(operation: Operation, warn: Warn): string[] {
     }
   }
   const success = responses.filter(([status]) => /^2(?:\d{2}|XX)$/u.test(status));
-  const lines = success.length
-    ? [`?? js (${success.map(([status]) => statusExpression(status)).join(' || ')}) isTrue`]
-    : ['# No documented success response; asserting the success range.', '?? status >= 200', '?? status < 300'];
+  const lines: string[] = [];
+  if (success.some(([status]) => status === '2XX')) {
+    lines.push('?? status >= 200', '?? status < 300');
+  } else if (success.length === 1) {
+    lines.push(`?? status == ${success[0][0]}`);
+  } else if (success.length) {
+    lines.push(`?? status matches ^(?:${success.map(([status]) => status).join('|')})$`);
+  } else {
+    lines.push('# No documented success response; asserting the success range.', '?? status >= 200', '?? status < 300');
+  }
   if (operation.method === 'head') {
     return lines;
   }
@@ -298,12 +256,48 @@ function assertions(operation: Operation, warn: Warn): string[] {
         ? `${media}.startsWith(${JSON.stringify(kind.slice(0, -1).toLowerCase())})`
         : `${media} === ${JSON.stringify(kind.toLowerCase())}`;
     };
-    lines.push(`?? js (!(${guard}) || (${mediaTypes.map(mediaCheck).join(' || ')})) isTrue`);
+    const unconditional = success.length === 1 && status !== '2XX';
+    if (unconditional) {
+      if (!mediaTypes.includes('*/*')) {
+        const patterns = mediaTypes.map(kind =>
+          kind
+            .toLowerCase()
+            .split('')
+            .map(character => {
+              if (character === '*') {
+                return '[^;\\s]+';
+              }
+              if (/[a-z]/u.test(character)) {
+                return `[${character}${character.toUpperCase()}]`;
+              }
+              return character.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+            })
+            .join('')
+        );
+        lines.push(`?? header content-type matches ^\\s*(?:${patterns.join('|')})\\s*(?:;.*)?$`);
+      }
+    } else if (detailedAsserts) {
+      lines.push(`?? js (!(${guard}) || (${mediaTypes.map(mediaCheck).join(' || ')})) isTrue`);
+    }
     for (const [kind, mediaValue] of Object.entries(content)) {
       const definition = object(mediaValue, 'response media type');
       if ((kind.includes('json') || kind === '*/*') && definition.schema !== undefined) {
-        const check = schemaCheck(definition.schema, 'response.parsedBody', warn);
-        lines.push(`?? js (!(${guard}) || !(${mediaCheck(kind)}) || ${check}) isTrue`);
+        const native: string[] = [];
+        const check = schemaCheck(
+          definition.schema,
+          'response.parsedBody',
+          warn,
+          new Set(),
+          unconditional && mediaTypes.length === 1 ? { lines: native, path: '' } : undefined
+        );
+        lines.push(...new Set(native));
+        if (detailedAsserts && check !== 'true') {
+          lines.push(
+            unconditional && mediaTypes.length === 1
+              ? `?? js ${check} isTrue`
+              : `?? js (!(${guard}) || !(${mediaCheck(kind)}) || (${check})) isTrue`
+          );
+        }
       }
     }
   }
@@ -313,7 +307,6 @@ function assertions(operation: Operation, warn: Warn): string[] {
 function renderBody(
   operation: Operation,
   binding: Binding | undefined,
-  scripts: string[],
   variables: Map<string, string>,
   warn: Warn
 ): { headers: Record<string, string>; body: string } {
@@ -332,16 +325,17 @@ function renderBody(
     warn(`Multiple request media types for ${operation.name}; using ${kind}`);
   }
   const example = withoutReadOnly(sample(media, warn), media.schema);
-  const bodyVariable = `${operation.name}_body`;
   if (kind.includes('json')) {
     if (binding) {
-      scripts.push(`exports.${bodyVariable} = JSON.stringify(${runtimeExpression(binding)}, null, 2);`);
-      return { headers: { 'Content-Type': kind }, body: `{{${bodyVariable}}}` };
+      return {
+        headers: { 'Content-Type': kind },
+        body: `{{JSON.stringify(${directLinkExpression(binding)}, null, 2)}}`,
+      };
     }
     return { headers: { 'Content-Type': kind }, body: JSON.stringify(example, null, 2) };
   }
   if (binding) {
-    throw new Error(`Linked request bodies currently require JSON: ${operation.name}`);
+    warn(`Linked ${kind} body on ${operation.name} requires manual editing; using an editable OpenAPI value`);
   }
   if (kind === 'application/x-www-form-urlencoded') {
     const values = object(example, 'form example');
@@ -410,7 +404,7 @@ function renderBody(
 export async function generateHttp(
   api: OpenApi,
   selected: Operation[],
-  options: AuthenticationOptions = {}
+  options: GenerationOptions = {}
 ): Promise<GenerationResult> {
   const warnings = new Set<string>();
   const warn: Warn = message => warnings.add(message);
@@ -429,7 +423,6 @@ export async function generateHttp(
     }
   }
   for (const [index, operation] of selected.entries()) {
-    const scripts: string[] = [];
     const links = findLinks(api, selected, index, warn);
     const auth = await authentication.generate(operation);
     const serverList = array(operation.operation.servers ?? operation.item.servers ?? api.root.servers, 'servers');
@@ -471,8 +464,8 @@ export async function generateHttp(
       const name = text(parameter.name);
       const location = text(parameter.in);
       const variable = parameterVariable(operation, parameter);
-      const encoded = `${variable}_encoded`;
-      const binding = links.parameters.get(`${location}:${name}`);
+      const key = `${location}:${name}`;
+      let binding = links.parameters.get(key);
       if (parameter.content || parameter.allowReserved || parameter.allowEmptyValue) {
         warn(
           `Parameter ${name} on ${operation.name} uses content/allowReserved/allowEmptyValue; review its serialization`
@@ -489,36 +482,61 @@ export async function generateHttp(
         throw new Error(`Unsupported ${location} parameter style ${style}`);
       }
       const value = sample(parameter, warn);
-      variables.set(variable, JSON.stringify({ value }));
-      scripts.push(
-        `const ${variable} = ${binding ? runtimeExpression(binding) : `JSON.parse(String($context.variables[${JSON.stringify(variable)}])).value`};`
-      );
-      scripts.push(`exports.${variable}_value = ${variable};`);
-      scripts.push(
-        `exports.${encoded} = (${serializeParameter.toString()})(${variable}, ${JSON.stringify(name)}, ${JSON.stringify(location)}, ${JSON.stringify(style)}, ${parameter.explode === undefined ? style === 'form' : parameter.explode === true});`
-      );
+      const type = optionalObject(parameter.schema, 'parameter schema').type;
+      const complex = (value !== null && typeof value === 'object') || type === 'object' || type === 'array';
+      const supported = !complex && (style === 'simple' || style === 'form');
+      if (binding && !supported) {
+        warn(`Complex linked parameter ${name} on ${operation.name}; using an editable OpenAPI value`);
+        links.parameters.delete(key);
+        binding = undefined;
+      }
+      let rendered: string;
+      if (supported) {
+        if (!binding) {
+          variables.set(variable, JSON.stringify({ value }));
+        }
+        const expression = binding ? directLinkExpression(binding, parameter) : `JSON.parse(${variable}).value`;
+        const encoded =
+          location === 'header' || (binding && (type === 'integer' || type === 'number' || type === 'boolean'))
+            ? `{{${expression}}}`
+            : `{{encodeURIComponent(${expression}${binding ? '.toString()' : ''})}}`;
+        rendered = location === 'query' || location === 'cookie' ? `${encodeURIComponent(name)}=${encoded}` : encoded;
+      } else {
+        variables.set(
+          variable,
+          singleLine(
+            serializeParameter(
+              value,
+              name,
+              location,
+              style,
+              parameter.explode === undefined ? style === 'form' : parameter.explode === true
+            )
+          )
+        );
+        warn(
+          `Parameter ${name} on ${operation.name} uses a pre-serialized editable OpenAPI value; edit its serialization manually`
+        );
+        rendered = `{{${variable}}}`;
+      }
       notes.push(
-        `# ${singleLine(`${location} ${name}${parameter.required === true ? ' (required)' : ' (optional)'}: ${text(parameter.description, 'edit the value above')}`)}`
+        `# ${singleLine(`${location} ${name}${parameter.required === true ? ' (required)' : ' (optional)'}: ${text(parameter.description, binding ? `from ${binding.source.name}.${name}` : 'edit the value above')}`)}`
       );
       if (location === 'path') {
-        path = path.split(`{${name}}`).join(`{{${encoded}}}`);
+        path = path.split(`{${name}}`).join(rendered);
       } else if (location === 'query') {
-        queries.push(`{{${encoded}}}`);
+        queries.push(rendered);
       } else if (location === 'cookie') {
-        cookies.push(`{{${encoded}}}`);
+        cookies.push(rendered);
       } else {
         if (!/^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/u.test(name)) {
           throw new Error(`Invalid parameter header ${name}`);
         }
-        headers[name] = `{{${encoded}}}`;
+        headers[name] = rendered;
       }
     }
     for (const [name, value] of auth.query) {
-      const encoded = identifier(`${operation.name}_auth_query_${name}`);
-      scripts.push(
-        `exports.${encoded} = encodeURIComponent(${JSON.stringify(name)}) + "=" + encodeURIComponent(${value.replace(/^\{\{|\}\}$/gu, '')});`
-      );
-      queries.push(`{{${encoded}}}`);
+      queries.push(`${encodeURIComponent(name)}={{encodeURIComponent(${value.replace(/^\{\{|\}\}$/gu, '')})}}`);
     }
     if (/(?<!\{)\{[^{}]+\}(?!\})/u.test(path)) {
       throw new Error(`Missing definition for a path parameter on ${operation.name}: ${path}`);
@@ -533,7 +551,7 @@ export async function generateHttp(
       }
       headers[name] = value;
     }
-    const body = renderBody(operation, links.body, scripts, variables, warn);
+    const body = renderBody(operation, links.body, variables, warn);
     Object.assign(headers, body.headers);
     const responseTypes = Object.values(object(operation.operation.responses, 'responses')).flatMap(value =>
       Object.keys(optionalObject(object(value, 'response').content, 'response content'))
@@ -562,12 +580,11 @@ export async function generateHttp(
       ...(external.url ? [`# Documentation: ${singleLine(text(external.url))}`] : []),
       ...notes,
       ...[...dependencies].map(name => `# @ref ${name}`),
-      ...(scripts.length ? ['{{', ...scripts, '}}'] : []),
       `${operation.method.toUpperCase()} {{${serverVariable}}}${path}${queries.length ? `?${queries.join('&')}` : ''}`,
       ...Object.entries(headers).map(([name, value]) => `${name}: ${value}`),
       '',
       ...(body.body ? [body.body, ''] : []),
-      ...assertions(operation, warn),
+      ...assertions(operation, warn, options.detailedAsserts === true),
     ];
     regions.push(lines.join('\n'));
   }
@@ -579,8 +596,8 @@ export async function generateHttp(
   const info = object(api.root.info, 'info');
   return {
     content: [
-      `# Generated from ${singleLine(text(info.title))} (${singleLine(text(info.version))}). Review before sending.`,
-      '# Parameter variables use JSON {"value": ...} to preserve types and empty values.',
+      `# Generated from ${singleLine(text(info.title))} (${singleLine(text(info.version))}). Created by HttpYacZW (${await getPackageVersion()})`,
+      '# Scalar parameter variables use JSON {"value": ...}; complex parameters use editable serialized values.',
       ...[...warnings].map(message => `# WARNING: ${singleLine(message)}`),
       ...variableLines,
       '',

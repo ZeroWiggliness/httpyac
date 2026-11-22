@@ -1,6 +1,6 @@
 # Todo CRUD OpenAPI example
 
-[todo-crud.yaml](todo-crud.yaml) is the single documented example. It describes:
+[todo-crud.yaml](todo-crud.yaml) is the single documented specification example. Its generated [todo-crud.http](todo-crud.http) includes the five Todo operations and public health check. It describes:
 
 - OpenID Connect client-credentials authentication for Todo list/create/read/update/delete.
 - Explicit links from the create response to read/update/delete, carrying the returned ID.
@@ -28,15 +28,23 @@ Select the collection and its descendants:
 node bin/httpyac.js openapi examples/openapi/todo-crud.yaml --path "/api/todos,/api/todos/*" --output todo.http --auth todo --auth-flow todo=client_credentials
 ```
 
+To regenerate the complete checked-in example, including public health:
+
+```shell
+node bin/httpyac.js openapi examples/openapi/todo-crud.yaml --path "GET /api/todos,POST /api/todos,GET /api/todos/{id},PATCH /api/todos/{id},DELETE /api/todos/{id},GET /health" --auth todo --auth-flow todo=client_credentials --force
+```
+
 Bare paths are exact. `/api/todos/*` excludes `/api/todos`; `/api/todos*` would include similarly named paths too. To explicitly order an end-to-end workflow:
 
 ```shell
 node bin/httpyac.js openapi examples/openapi/todo-crud.yaml --path "POST /api/todos,GET /api/todos/{id},PATCH /api/todos/{id},DELETE /api/todos/{id}" --output todo.http --force
 ```
 
-The generated ID example is deliberately different from the server's ID. Links, not guessed relationships or hand-entered IDs, supply the correct value. Inspect the output before running it: requests include mutations and deletion.
+The specification's ID example is deliberately different from the server's ID. Simple explicit links use named-response references such as `{{oas_createTodo.id}}` with `# @ref oas_createTodo`. Links, not guessed relationships or hand-entered IDs, supply the correct value. Missing linked fields remain unresolved and can make the target request fail; they do not silently fall back to the example ID. Inspect the output before running it: requests include mutations and deletion.
 
-By default, output is `todo-crud.http` beside the specification. `--output` changes its location. Existing output requires `--force`; source/reference files cannot be overwritten. Parameter variables use JSON `{"value": ...}` so you can edit strings, numbers, arrays, objects, booleans, nulls, and empty values without losing their type.
+By default, output is `todo-crud.http` beside the specification. `--output` changes its location. Existing output requires `--force`; source/reference files cannot be overwritten. Scalar parameter variables use JSON `{"value": ...}` to preserve types and empty values. Complex parameters use pre-serialized editable values with warnings; edit their serialization manually.
+
+The header identifies the generating package, for example `Created by HttpYacZW (6.18.1)`. By default, assertions use only native syntax such as `?? status == 200` and `?? body title isString`. Add `--detailed-asserts` to the regeneration command to include structural and conditional `?? js` checks without an equivalent native assertion. This adds checks for object shape, own-property presence, integer/finite-number values, array items, and nullable/alternative schemas; the native assertions remain. See [CLI assertion output examples](../../docs/wiki/Installation-CLI.md#assertion-output-examples) for both modes. Request generation emits no standalone script blocks or embedded serialization functions; short inline expressions handle straightforward encoding and JSON body substitution.
 
 ## Authenticate and execute
 
@@ -110,4 +118,4 @@ The OpenAPI E2E runner generates files in its own temporary directory, executes 
 
 Use trusted specifications: references can read local files and access remote or private-network HTTP(S) URLs. Remote references and discovery have bounded requests; generation never obtains credentials or sends API operations.
 
-Status, media-type, and supported response structure/type checks are generated, not literal comparisons with changing example values. Advanced schema/serialization/link limitations are reported explicitly; this is not a complete JSON Schema validator. Workflow selectors never invent operations or infer relationships absent from OpenAPI links. See [CLI usage](../../docs/wiki/Installation-CLI.md#httpyac-openapi).
+Status, media-type, and supported response structure/type checks are generated, not literal comparisons with changing example values. Native-only generation omits checks that require JavaScript; enable `--detailed-asserts` for fuller supported validation. Only matching top-level response fields bind scalar request parameters directly. Complex, mismatched, or ambiguous links warn and retain the target's editable OpenAPI value; an example value is not linked and may fail or address a different resource. Simple whole-body or top-level JSON body links use inline JSON serialization; unsupported body links retain the request example with a warning. Advanced schema/serialization/link limitations are reported explicitly; this is not a complete JSON Schema validator. Workflow selectors never invent operations or infer relationships absent from OpenAPI links. See [CLI usage](../../docs/wiki/Installation-CLI.md#httpyac-openapi).

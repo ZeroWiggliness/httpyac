@@ -1,0 +1,99 @@
+# Generated from Todo CRUD API (1.0.0). Created by HttpYacZW (6.18.1)
+# Scalar parameter variables use JSON {"value": ...}; complex parameters use editable serialized values.
+@baseUrl = {{ $context.variables["baseUrl"] ?? ("http://localhost:8089") }}
+@oas_auth_todo_flow1_tokenEndpoint = http://localhost:8089/todo-oidc/token
+@oas_auth_todo_clientId = {{$processEnv OAS_TODO_CLIENT_ID}}
+@oas_auth_todo_flow1_clientId = {{oas_auth_todo_clientId}}
+@oas_auth_todo_clientSecret = {{$processEnv OAS_TODO_CLIENT_SECRET}}
+@oas_auth_todo_flow1_clientSecret = {{oas_auth_todo_clientSecret}}
+@oas_auth_todo_flow1_scope = todo.read todo.write
+@oas_auth_todo_flow1_keepAlive = false
+
+### List todos
+# @name oas_listTodos
+# @description Return the available todos.
+# @tag todos
+GET {{baseUrl}}/api/todos
+Authorization: openid client_credentials oas_auth_todo_flow1
+Accept: application/json
+
+?? status == 200
+?? header content-type matches ^\s*(?:[aA][pP][pP][lL][iI][cC][aA][tT][iI][oO][nN]/[jJ][sS][oO][nN])\s*(?:;.*)?$
+?? body todos isArray
+
+### Create a todo
+# @name oas_createTodo
+# @description Create a todo from the supplied example. Response links carry its server-assigned ID to read, update, and delete.
+# @tag todos
+POST {{baseUrl}}/api/todos
+Authorization: openid client_credentials oas_auth_todo_flow1
+Content-Type: application/json
+Accept: application/json
+
+{
+  "title": "Write OpenAPI tests",
+  "completed": false
+}
+
+?? status == 201
+?? header content-type matches ^\s*(?:[aA][pP][pP][lL][iI][cC][aA][tT][iI][oO][nN]/[jJ][sS][oO][nN])\s*(?:;.*)?$
+?? body title isString
+?? body completed isBoolean
+
+### Read a todo
+# @name oas_getTodo
+# @description Read the Todo identified by its ID.
+# @tag todos
+# path id (required): Server-assigned Todo ID; replaced by the create response when linked.
+# @ref oas_createTodo
+GET {{baseUrl}}/api/todos/{{oas_createTodo.id}}
+Authorization: openid client_credentials oas_auth_todo_flow1
+Accept: application/json
+
+?? status == 200
+?? header content-type matches ^\s*(?:[aA][pP][pP][lL][iI][cC][aA][tT][iI][oO][nN]/[jJ][sS][oO][nN])\s*(?:;.*)?$
+?? body title isString
+?? body completed isBoolean
+
+### Update a todo
+# @name oas_updateTodo
+# @description Change the Todo title and completion flag.
+# @tag todos
+# path id (required): Server-assigned Todo ID; replaced by the create response when linked.
+# @ref oas_createTodo
+PATCH {{baseUrl}}/api/todos/{{oas_createTodo.id}}
+Authorization: openid client_credentials oas_auth_todo_flow1
+Content-Type: application/json
+Accept: application/json
+
+{
+  "title": "Verify generated workflow",
+  "completed": true
+}
+
+?? status == 200
+?? header content-type matches ^\s*(?:[aA][pP][pP][lL][iI][cC][aA][tT][iI][oO][nN]/[jJ][sS][oO][nN])\s*(?:;.*)?$
+?? body title isString
+?? body completed isBoolean
+
+### Delete a todo
+# @name oas_deleteTodo
+# @description Delete the Todo without returning a response body.
+# @tag todos
+# path id (required): Server-assigned Todo ID; replaced by the create response when linked.
+# @ref oas_createTodo
+DELETE {{baseUrl}}/api/todos/{{oas_createTodo.id}}
+Authorization: openid client_credentials oas_auth_todo_flow1
+
+?? status == 204
+
+### Kubernetes health check
+# @name oas_health
+# @description Public HTTP probe endpoint for both Kubernetes liveness and readiness. Return 200 while healthy, or 503 when the application cannot serve traffic. No client credentials or bearer token are needed.
+# @tag health
+GET {{baseUrl}}/health
+Accept: application/json
+
+?? status == 200
+?? header content-type matches ^\s*(?:[aA][pP][pP][lL][iI][cC][aA][tT][iI][oO][nN]/[jJ][sS][oO][nN])\s*(?:;.*)?$
+?? body status isString

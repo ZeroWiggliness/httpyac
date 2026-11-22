@@ -9,6 +9,7 @@ const root = path.resolve(__dirname, '..');
 const cli = path.join(root, 'bin', 'httpyac.js');
 const example = path.join(root, 'examples', 'openapi', 'todo-crud.yaml');
 const baseUrl = 'http://localhost:8089';
+const packageVersion = require('../package.json').version;
 
 function run(args, env = {}, expected = 0) {
   const result = spawnSync(process.execPath, [cli, ...args], {
@@ -76,7 +77,7 @@ async function main() {
       'openapi',
       example,
       '--path',
-      'GET /api/todos,POST /api/todos,GET /api/todos/{id},PATCH /api/todos/{id},DELETE /api/todos/{id}',
+      'GET /api/todos,POST /api/todos,GET /api/todos/{id},PATCH /api/todos/{id},DELETE /api/todos/{id},GET /health',
       '--output',
       workflow,
     ]);
@@ -90,15 +91,26 @@ async function main() {
       discoveryBefore + 1
     );
     const content = await fs.readFile(workflow, 'utf8');
+    assert.equal(
+      content.split('\n')[0],
+      `# Generated from Todo CRUD API (1.0.0). Created by HttpYacZW (${packageVersion})`
+    );
+    assert.doesNotMatch(content, /^\{\{\s*$/m);
+    assert.doesNotMatch(content, /exports\.|function\s+\w+\(/);
+    assert.match(content, /\?\? status == 201/);
+    assert.match(content, /\?\? body title isString/);
+    assert.doesNotMatch(content, /^\?\? js /m);
+    assert.equal((content.match(/\{\{oas_createTodo\.id\}\}/g) || []).length, 3);
+    assert.doesNotMatch(content.slice(content.indexOf('# @name oas_health')), /Authorization:/);
     assert.match(content, /# @description Create a todo/);
     assert.match(content, /Authorization: openid client_credentials/);
     assert.equal((content.match(/^# @ref /gm) || []).length, 3);
     run(['openapi', example, '--output', workflow], {}, 1);
     assert.equal(await fs.readFile(workflow, 'utf8'), content, 'Output is unchanged without --force');
-    const result = summary(run(['send', workflow, '--all', '--bail', '--json', '--timeout', '10000'], credentials), 5);
+    const result = summary(run(['send', workflow, '--all', '--bail', '--json', '--timeout', '10000'], credentials), 6);
     assert.deepEqual(
       result.requests.map(request => request.name),
-      ['oas_listTodos', 'oas_createTodo', 'oas_getTodo', 'oas_updateTodo', 'oas_deleteTodo']
+      ['oas_listTodos', 'oas_createTodo', 'oas_getTodo', 'oas_updateTodo', 'oas_deleteTodo', 'oas_health']
     );
     assert.equal(await count({ method: 'POST', urlPath: '/todo-oidc/token' }), tokenBefore + 1);
     const journal = await (
@@ -140,7 +152,8 @@ async function main() {
       discoveryAfterWorkflow
     );
     await fs.writeFile(json, JSON.stringify(await new RefParser().parse(example)));
-    run(['openapi', json, '--path', 'GET /health', '--output', health, '--force']);
+    run(['openapi', json, '--path', 'GET /health', '--output', health, '--force', '--detailed-asserts']);
+    assert.match(await fs.readFile(health, 'utf8'), /^\?\? js /m);
     summary(run(['send', health, '--all', '--bail', '--json', '--timeout', '10000']), 1);
     const failure = JSON.parse(
       run(['send', health, '--all', '--bail', '--json', '--var', `baseUrl=${baseUrl}/openapi-bad`], {}, 20)

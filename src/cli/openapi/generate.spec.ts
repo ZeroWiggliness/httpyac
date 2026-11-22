@@ -8,6 +8,7 @@ import { initFileProvider, initHttpClientProvider, parseHttp } from '../../test/
 import { JsonObject, loadOpenApi, object, OpenApi, selectOperations } from './document';
 import { generateHttp } from './generate';
 import { writeOpenApi } from './index';
+import { getPackageVersion } from '../version';
 
 function fixture(operation: JsonObject): OpenApi {
   return {
@@ -22,6 +23,42 @@ describe('OpenAPI generation integration', () => {
   beforeEach(() => initFileProvider());
   afterEach(() => jest.restoreAllMocks());
 
+  it.each([undefined, false, true])('makes detailed JavaScript assertions opt-in: %s', async detailedAsserts => {
+    const api = fixture({
+      responses: {
+        '200': {
+          description: 'OK',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['title', 'id'],
+                properties: { title: { type: 'string' }, id: { type: 'integer' } },
+              },
+            },
+          },
+        },
+      },
+    });
+    const generated = await generateHttp(api, api.operations, { detailedAsserts });
+    expect(generated.content).toContain('?? status == 200');
+    expect(generated.content).toContain('?? header content-type matches');
+    expect(generated.content).toContain('?? body title isString');
+    expect(/^\?\? js /mu.test(generated.content)).toBe(detailedAsserts === true);
+    initHttpClientProvider(async () => ({
+      statusCode: 200,
+      headers: { 'content-type': 'application/json' },
+      parsedBody: { title: '', id: 'not an integer' },
+    }));
+    const file = await parseHttp(generated.content);
+    await send({ httpFile: file });
+    expect(
+      file.httpRegions
+        .flatMap(region => region.testResults || [])
+        .every(result => result.status === TestResultStatus.SUCCESS)
+    ).toBe(detailedAsserts !== true);
+  });
+
   it('executes a generated Todo workflow with a returned ID rather than the example ID', async () => {
     const api = await loadOpenApi(join(process.cwd(), 'examples', 'openapi', 'todo-crud.yaml'));
     api.root.security = [];
@@ -29,6 +66,15 @@ describe('OpenAPI generation integration', () => {
       api,
       selectOperations(api, 'POST /api/todos,GET /api/todos/{id},PATCH /api/todos/{id},DELETE /api/todos/{id}')
     );
+    expect(generated.content.split('\n')[0]).toBe(
+      `# Generated from Todo CRUD API (1.0.0). Created by HttpYacZW (${await getPackageVersion()})`
+    );
+    expect(generated.content).toContain('?? status == 201');
+    expect(generated.content).toContain('?? body title isString');
+    expect(generated.content).toContain('?? body completed isBoolean');
+    expect(generated.content.match(/\{\{oas_createTodo\.id\}\}/gu)).toHaveLength(3);
+    expect(generated.content).not.toMatch(/^\{\{\s*$/mu);
+    expect(generated.content).not.toContain('exports.');
     const requests = initHttpClientProvider(async request => {
       let statusCode = 200;
       if (request.method === 'POST') {
@@ -97,7 +143,7 @@ describe('OpenAPI generation integration', () => {
         },
       };
       const api = fixture({ responses: { '200': response, '201': response } });
-      const generated = await generateHttp(api, api.operations);
+      const generated = await generateHttp(api, api.operations, { detailedAsserts: true });
       initHttpClientProvider(async () => ({
         statusCode: status,
         headers: { 'content-type': contentType },
@@ -229,7 +275,7 @@ describe('OpenAPI generation integration', () => {
     expect(requests[0].url).toBe('https://override.example/test');
   });
 
-  it('binds operationRef links, escaped JSON pointers, zero IDs and JSON request bodies', async () => {
+  it('warns and uses editable examples for complex links instead of generating extraction scripts', async () => {
     const api = fixture({
       responses: {
         '201': {
@@ -268,8 +314,211 @@ describe('OpenAPI generation integration', () => {
     const generated = await generateHttp(api, api.operations);
     const httpFile = await parseHttp(generated.content);
     await send({ httpFile });
-    expect(requests.map(request => request.url)).toEqual(['http://example.test/test', 'http://example.test/target/0']);
+    expect(generated.warnings.join(' ')).toContain('editable OpenAPI value');
+    expect(generated.content).not.toMatch(/^\{\{\s*$/mu);
+    expect(requests.map(request => request.url)).toEqual(['http://example.test/test', 'http://example.test/target/1']);
     expect(JSON.parse(String(requests[1].body))).toEqual({ title: 'linked' });
+  });
+
+  it.each([0, 91])('uses direct operationRef links with a returned ID of %s', async id => {
+    const api = fixture({
+      responses: {
+        '201': {
+          description: 'Created',
+          links: { next: { operationRef: '#/target', parameters: { id: '$response.body#/id' } } },
+        },
+      },
+    });
+    api.operations[0].name = 'oas_source';
+    const target = {
+      name: 'next',
+      path: '/target/{id}',
+      method: 'get',
+      item: {},
+      operation: {
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' }, example: 1 }],
+        responses: { '204': { description: 'OK' } },
+      },
+    };
+    api.operations.push(target);
+    api.resolveReference = () => target.operation;
+    const generated = await generateHttp(api, api.operations);
+    const requests = initHttpClientProvider(async request =>
+      request.url?.endsWith('/test') ? { statusCode: 201, parsedBody: { id } } : { statusCode: 204, body: '' }
+    );
+    await send({ httpFile: await parseHttp(generated.content) });
+    expect(generated.content).toContain('/target/{{oas_source.id}}');
+    expect(generated.content).not.toMatch(/^\{\{\s*$/mu);
+    expect(requests[1].url).toBe(`http://example.test/target/${id}`);
+  });
+
+  it('encodes linked string IDs inline and warns about mismatched response fields', async () => {
+    const api = fixture({
+      operationId: 'source',
+      responses: {
+        '200': {
+          description: 'OK',
+          links: { next: { operationId: 'target', parameters: { id: '$response.body#/other' } } },
+        },
+      },
+    });
+    api.operations[0].name = 'oas_source';
+    const target = {
+      name: 'next',
+      path: '/target/{id}',
+      method: 'get',
+      item: {},
+      operation: {
+        operationId: 'target',
+        parameters: [{ name: 'id', in: 'path', schema: { type: 'string' }, example: 'a b' }],
+        responses: { '204': { description: 'OK' } },
+      },
+    };
+    api.operations.push(target);
+    const fallback = await generateHttp(api, api.operations);
+    expect(fallback.warnings.join(' ')).toContain('editable OpenAPI value');
+    object(object(object(api.operations[0].operation.responses, 'responses')['200'], 'response').links, 'links').next =
+      {
+        operationId: 'target',
+        parameters: { id: '$response.body#/id' },
+      };
+    const generated = await generateHttp(api, api.operations);
+    const requests = initHttpClientProvider(async request =>
+      request.url?.endsWith('/test') ? { statusCode: 200, parsedBody: { id: 'a/b ?' } } : { statusCode: 204, body: '' }
+    );
+    await send({ httpFile: await parseHttp(generated.content) });
+    expect(generated.content).toContain('encodeURIComponent(oas_source.id.toString())');
+    expect(requests[1].url).toBe('http://example.test/target/a%2Fb%20%3F');
+  });
+
+  it('does not replace a missing linked response field with the example ID', async () => {
+    const api = await loadOpenApi(join(process.cwd(), 'examples', 'openapi', 'todo-crud.yaml'));
+    api.root.security = [];
+    const selected = selectOperations(api, 'POST /api/todos,GET /api/todos/{id}');
+    const created = object(object(selected[0].operation.responses, 'responses')['201'], 'response');
+    delete object(object(created.content, 'content')['application/json'], 'media').schema;
+    const generated = await generateHttp(api, selected);
+    const requests = initHttpClientProvider(async request => ({
+      statusCode: request.url?.endsWith('/api/todos') ? 201 : 404,
+      headers: { 'content-type': 'application/json' },
+      parsedBody: { title: 'missing ID', completed: false },
+    }));
+    const file = await parseHttp(generated.content);
+    await send({ httpFile: file });
+    expect(requests.some(request => request.url?.endsWith('/api/todos/1'))).toBe(false);
+    expect(requests).toHaveLength(2);
+    expect(requests[1].url).toContain('{{oas_createTodo.id}}');
+    expect(file.httpRegions[0].testResults?.every(result => result.status === TestResultStatus.SUCCESS)).toBe(true);
+    expect(
+      file.httpRegions
+        .flatMap(region => region.testResults || [])
+        .some(result => result.status !== TestResultStatus.SUCCESS)
+    ).toBe(true);
+  });
+
+  it('uses native MIME matching without accepting an unrelated type', async () => {
+    const api = fixture({
+      responses: { '200': { description: 'OK', content: { 'application/json': {} } } },
+    });
+
+    const generated = await generateHttp(api, api.operations);
+    expect(generated.content).toContain('?? header content-type matches ');
+    expect(generated.content).not.toContain('?? js');
+    for (const [contentType, passes] of [
+      ['Application/JSON; charset=utf-8', true],
+      ['application/json-other', false],
+    ] as const) {
+      initHttpClientProvider(async () => ({ statusCode: 200, headers: { 'content-type': contentType } }));
+      const file = await parseHttp(generated.content);
+      await send({ httpFile: file });
+      expect(
+        file.httpRegions
+          .flatMap(region => region.testResults || [])
+          .every(result => result.status === TestResultStatus.SUCCESS)
+      ).toBe(passes);
+    }
+  });
+
+  it('encodes authentication query values without request scripts', async () => {
+    const api = fixture({ responses: { '204': { description: 'OK' } } });
+    api.root.security = [{ key: [] }];
+    api.root.components = { securitySchemes: { key: { type: 'apiKey', in: 'query', name: 'api key' } } };
+    jest.replaceProperty(process, 'env', { ...process.env, OAS_KEY_API_KEY: 'a/b ?' });
+    const generated = await generateHttp(api, api.operations);
+    const requests = initHttpClientProvider(async () => ({ statusCode: 204, body: '' }));
+    await send({
+      httpFile: await parseHttp(generated.content),
+    });
+    expect(generated.content).not.toMatch(/^\{\{\s*$/mu);
+    expect(requests[0].url).toBe('http://example.test/test?api%20key=a%2Fb%20%3F');
+  });
+
+  it.each([
+    [{ type: ['object', 'string'], properties: { id: { type: 'string' } }, required: ['id'] }, 'valid string'],
+    [{ type: 'object', nullable: true, properties: { id: { type: 'string' } }, required: ['id'] }, null],
+  ])('keeps conditional fields out of unconditional native assertions', async (schema, body) => {
+    const api = fixture({
+      responses: { '200': { description: 'OK', content: { 'application/json': { schema } } } },
+    });
+    const generated = await generateHttp(api, api.operations, { detailedAsserts: true });
+    expect(generated.content).not.toContain('?? body id isString');
+    initHttpClientProvider(async () => ({
+      statusCode: 200,
+      headers: { 'content-type': 'application/json' },
+      parsedBody: body,
+    }));
+    const file = await parseHttp(generated.content);
+    await send({ httpFile: file });
+    expect(
+      file.httpRegions
+        .flatMap(region => region.testResults || [])
+        .every(result => result.status === TestResultStatus.SUCCESS)
+    ).toBe(true);
+  });
+
+  it.each([
+    [{ nested: { title: '' }, items: [{ id: 0 }] }, true],
+    [{ nested: {}, items: [{ id: 0 }] }, false],
+    [{ nested: null, items: [{ id: 0 }] }, false],
+    [{ items: [{ id: 0 }] }, false],
+    [{ nested: { title: '' }, items: [{}] }, false],
+    [{ nested: { title: '' }, items: 'invalid' }, false],
+  ])('validates required nested fields and array items without redundant guards', async (body, passes) => {
+    const api = fixture({
+      responses: {
+        '200': {
+          description: 'OK',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['nested', 'items'],
+                properties: {
+                  nested: { type: 'object', required: ['title'], properties: { title: { type: 'string' } } },
+                  items: {
+                    type: 'array',
+                    items: { type: 'object', required: ['id'], properties: { id: { type: 'integer' } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    const generated = await generateHttp(api, api.operations, { detailedAsserts: true });
+    initHttpClientProvider(async () => ({
+      statusCode: 200,
+      headers: { 'content-type': 'application/json' },
+      parsedBody: body,
+    }));
+    const file = await parseHttp(generated.content);
+    await send({ httpFile: file });
+    expect(
+      file.httpRegions
+        .flatMap(region => region.testResults || [])
+        .every(result => result.status === TestResultStatus.SUCCESS)
+    ).toBe(passes);
   });
 
   it('warns rather than inventing bindings for conflicting, backward or unselected links', async () => {

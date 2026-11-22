@@ -1,17 +1,14 @@
 import { Command } from 'commander';
-import { join } from 'path';
-
-import * as utils from '../utils';
 import { initIOProvider } from './initCliProvider';
 import { oauth2Command } from './oauth2';
 import { openapiCommand } from './openapi';
 import { sendCommand } from './send';
+import { getPackageVersion } from './version';
 
 export async function createProgram() {
   const program = new Command();
-  const packageJson = await utils.parseJson<Record<string, string>>(join(__dirname, '../package.json'));
   program
-    .version(packageJson?.version || '0.0.1')
+    .version(await getPackageVersion())
     .description('httpYac - Quickly and easily send REST, SOAP, GraphQL and gRPC requests')
     .addCommand(oauth2Command())
     .addCommand(openapiCommand())

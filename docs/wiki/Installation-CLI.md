@@ -103,23 +103,57 @@ httpyac openapi api.yaml --path "POST /api/todos,GET /api/todos/{id},PATCH /api/
 httpyac openapi api.yaml --path 'GET regex:/^\/api\/v[23]{1,2}\/todos$/u' --output selected.http
 ```
 
-| Option | Behavior |
-| --- | --- |
-| `--path <selectors>` | Ordered comma-separated selectors; omission includes all operations in document order. Bare paths are exact. `*` spans path separators. Optional `METHOD ` restricts methods. Regex syntax is `regex:/pattern/flags`, with `i`, `m`, `u` allowed; commas inside regex are preserved. Deliberate repeated operations are kept with distinct names. |
-| `-o, --output <file>` | Defaults to `<spec-name>.http` beside the specification. |
-| `--force` | Allows replacing output, never the input specification or a referenced file. |
-| `--auth <selection...>` | Security alternative(s): scheme name, combined `scheme+scheme`, or `none` when public access is allowed. Multiple alternatives with the same schemes but different scopes are labelled `scheme[scope ...]`. |
-| `--auth-flow <selection...>` | Flow name or scheme-specific choice such as `todo=client_credentials`. |
+| Option | Behavior | Example argument |
+| --- | --- | --- |
+| `--path <selectors>` | Ordered comma-separated selectors; omission includes all operations in document order. Bare paths are exact. `*` spans path separators. Optional `METHOD ` restricts methods. Regex syntax is `regex:/pattern/flags`, with `i`, `m`, `u` allowed; commas inside regex are preserved. Deliberate repeated operations are kept with distinct names. | `--path "POST /api/todos,GET /api/todos/{id}"` |
+| `-o, --output <file>` | Defaults to `<spec-name>.http` beside the specification. | `--output workflow.http` |
+| `--force` | Allows replacing output, never the input specification or a referenced file. | `--output workflow.http --force` |
+| `--detailed-asserts` | Disabled by default. Adds detailed `?? js` response checks alongside native assertions. The programmatic generation option is `detailedAsserts: true`. | `--detailed-asserts` |
+| `--auth <selection...>` | Security alternative(s): scheme name, combined `scheme+scheme`, or `none` when public access is allowed. Multiple alternatives with the same schemes but different scopes are labelled `scheme[scope ...]`. | `--auth todo` |
+| `--auth-flow <selection...>` | Flow name or scheme-specific choice such as `todo=client_credentials`. | `--auth-flow todo=client_credentials` |
 
 `/api/todos/*` selects descendants, not `/api/todos` itself. `/api/todos*` also matches similarly named paths. Quote selector lists to preserve spaces, wildcards, and shell-special characters.
 
-The generator includes names, titles, descriptions, tags, parameter values, supported request examples, and status/content-type/response structure assertions. It prefers JSON bodies when available; forms, multipart, text/XML examples, and editable binary file imports are also supported. Example values are not assumed to be immutable response values. Edit parameter variables inside their JSON `{"value": ...}` wrapper; server variables support execution-time `--var` overrides.
+The generator includes names, titles, descriptions, tags, parameter values, supported request examples, and response assertions. Its header records `Created by HttpYacZW (<package version>)`. By default, assertions use only native status/header/body syntax. `--detailed-asserts` adds structural or conditional JavaScript checks that have no equivalent native predicate. It prefers JSON bodies when available; forms, multipart, text/XML examples, and editable binary file imports are also supported. Example values are not assumed to be immutable response values. Scalar parameter variables use a JSON `{"value": ...}` wrapper; complex parameters use pre-serialized editable values with warnings. Server variables support execution-time `--var` overrides.
+
+### Assertion output examples
+
+Generate the public health request with native assertions only (the default):
+
+```shell
+httpyac openapi examples/openapi/todo-crud.yaml --path "GET /health" --output health.http
+```
+
+The generated request and assertions are:
+
+```http
+GET {{baseUrl}}/health
+Accept: application/json
+
+?? status == 200
+?? header content-type matches ^\s*(?:[aA][pP][pP][lL][iI][cC][aA][tT][iI][oO][nN]/[jJ][sS][oO][nN])\s*(?:;.*)?$
+?? body status isString
+```
+
+Enable additional checks and replace the same output:
+
+```shell
+httpyac openapi examples/openapi/todo-crud.yaml --path "GET /health" --output health.http --force --detailed-asserts
+```
+
+The native assertions above remain, followed by:
+
+```http
+?? js (response.parsedBody !== null && typeof response.parsedBody === "object" && !Array.isArray(response.parsedBody)) && Object.hasOwn(response.parsedBody, "status") isTrue
+```
+
+Native-only output intentionally omits checks without a native equivalent, including object shape/own-property checks, integer and finite-number checks, array-item schemas, nullable/alternative schemas, and status-dependent media/schema checks. Use `--detailed-asserts` for the fuller supported response validation; it still does not provide full JSON Schema validation. Omitting the flag on regeneration returns to native-only output. It changes assertions only, not authentication, examples, parameter values, or response links.
 
 Authentication respects global security, operation overrides, AND combinations, OR alternatives, and public operations. Ambiguous alternatives/flows prompt interactively; without a terminal, provide explicit options or generation fails. Basic/Digest/Bearer, API keys, OAuth2, and OpenID discovery use native httpyac helpers and environment-backed credentials. Unsupported schemes or incompatible combinations fail explicitly. Generation may read discovery but never obtains a token; credentials are needed only when executing generated requests.
 
 OpenAPI implicit flows need not declare a token URL, but the native implicit/hybrid helper requires one. In that case generation emits an explicit `OAS_<SCHEME>_TOKEN_ENDPOINT` placeholder and warning rather than guessing a URL.
 
-Workflow order follows selectors. Only explicit links from preceding selected operations bind request parameters or JSON bodies. Missing/ambiguous/unsupported links require review; the generator does not guess IDs, add unselected requests, or invent CRUD operations.
+Workflow order follows selectors. Only explicit links from preceding selected operations bind request parameters or JSON bodies. Matching top-level response fields use direct named-response references such as `{{oas_createTodo.id}}`, retaining `# @ref oas_createTodo`. Complex/mismatched/ambiguous parameter links warn in the console and generated comments, leaving the target's editable OpenAPI value for manual review. That value may fail or address another resource; it is not a runtime fallback for an accepted direct link. Simple whole-body or top-level JSON body links use short inline serialization expressions; unsupported body links retain the request example with a warning. Generated requests contain no standalone script blocks or embedded serialization helpers. The generator does not guess IDs, add unselected requests, or invent CRUD operations.
 
 Internal, local-file, and HTTP(S) references are supported. **Only use trusted specifications**: reference loading can access local files and private-network URLs. Remote reference/discovery failures are explicit. Recursive/advanced schema and serialization limitations are reported in console output and generated comments; structural assertions are not full JSON Schema conformance validation.
 
