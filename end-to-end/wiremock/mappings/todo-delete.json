@@ -1,0 +1,12 @@
+{
+  "priority": 1,
+  "scenarioName": "OpenApiTodoWorkflow",
+  "requiredScenarioState": "Updated",
+  "newScenarioState": "Deleted",
+  "request": {
+    "method": "DELETE",
+    "urlPath": "/api/todos/73",
+    "headers": { "Authorization": { "equalTo": "Bearer httpyac-todo-test-token" } }
+  },
+  "response": { "status": 204 }
+}

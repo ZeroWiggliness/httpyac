@@ -51,7 +51,7 @@ jobs:
       - name: Start end-to-end WireMock
         run: docker compose -f end-to-end/compose.yaml up --detach --wait --wait-timeout 120
       - name: End-to-end tests (built httpyac)
-        run: npm run test:e2e
+        run: npm run test:e2e:all
       - name: WireMock logs
         if: failure()
         run: docker compose -f end-to-end/compose.yaml logs --no-color

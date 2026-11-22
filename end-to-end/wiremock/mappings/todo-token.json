@@ -1,0 +1,25 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "POST",
+    "urlPath": "/todo-oidc/token",
+    "basicAuthCredentials": {
+      "username": "httpyac-todo-client",
+      "password": "httpyac-todo-secret"
+    },
+    "formParameters": {
+      "grant_type": { "equalTo": "client_credentials" },
+      "scope": { "equalTo": "todo.read todo.write" }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json", "Cache-Control": "no-store" },
+    "jsonBody": {
+      "access_token": "httpyac-todo-test-token",
+      "token_type": "Bearer",
+      "expires_in": 3600,
+      "scope": "todo.read todo.write"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "request": { "method": "GET", "urlPath": "/openapi-bad/health" },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": { "status": 123 }
+  }
+}

@@ -1,6 +1,22 @@
 import { convertCliOptionsToContext } from './send';
+import { createProgram } from './cli';
 
 describe('cli', () => {
+  it('registers OpenAPI generation while preserving send as the default command', async () => {
+    const program = await createProgram();
+    expect(program.commands.map(command => command.name())).toContain('openapi');
+    expect(program.helpInformation()).toContain('send');
+    const openapi = program.commands.find(command => command.name() === 'openapi');
+    expect(openapi?.helpInformation()).toContain('--auth-flow');
+    const action = jest.fn();
+    const send = program.commands.find(command => command.name() === 'send');
+    if (!send) {
+      throw new Error('send command is missing');
+    }
+    send.action(action);
+    await program.parseAsync(['node', 'httpyac', 'example.http']);
+    expect(action.mock.calls[0][0]).toEqual(['example.http']);
+  });
   describe('convertCliOptionsToContext', () => {
     it('disables ANSI colors when explicitly requested', () => {
       const result = convertCliOptionsToContext({ color: false });

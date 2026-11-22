@@ -1,0 +1,20 @@
+{
+  "priority": 1,
+  "scenarioName": "OpenApiTodoWorkflow",
+  "requiredScenarioState": "Started",
+  "newScenarioState": "Created",
+  "request": {
+    "method": "POST",
+    "urlPath": "/api/todos",
+    "headers": {
+      "Authorization": { "equalTo": "Bearer httpyac-todo-test-token" },
+      "Content-Type": { "contains": "application/json" }
+    },
+    "bodyPatterns": [{ "equalToJson": { "title": "Write OpenAPI tests", "completed": false } }]
+  },
+  "response": {
+    "status": 201,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": { "id": 73, "title": "Write OpenAPI tests", "completed": false }
+  }
+}

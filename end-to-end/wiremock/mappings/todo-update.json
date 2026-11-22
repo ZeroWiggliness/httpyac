@@ -1,0 +1,20 @@
+{
+  "priority": 1,
+  "scenarioName": "OpenApiTodoWorkflow",
+  "requiredScenarioState": "Read",
+  "newScenarioState": "Updated",
+  "request": {
+    "method": "PATCH",
+    "urlPath": "/api/todos/73",
+    "headers": {
+      "Authorization": { "equalTo": "Bearer httpyac-todo-test-token" },
+      "Content-Type": { "contains": "application/json" }
+    },
+    "bodyPatterns": [{ "equalToJson": { "title": "Verify generated workflow", "completed": true } }]
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": { "id": 73, "title": "Verify generated workflow", "completed": true }
+  }
+}

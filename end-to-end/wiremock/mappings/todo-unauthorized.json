@@ -1,0 +1,9 @@
+{
+  "priority": 10,
+  "request": { "urlPathPattern": "/api/todos(?:/.*)?" },
+  "response": {
+    "status": 401,
+    "headers": { "Content-Type": "application/json", "WWW-Authenticate": "Bearer" },
+    "jsonBody": { "error": "invalid_token_or_workflow" }
+  }
+}
