@@ -1,6 +1,33 @@
 import { convertCliOptionsToContext } from './send';
+import { createProgram } from './cli';
 
 describe('cli', () => {
+  it('registers OpenAPI generation while preserving send as the default command', async () => {
+    const program = await createProgram();
+    expect(program.commands.map(command => command.name())).toContain('openapi');
+    expect(program.helpInformation()).toContain('send');
+    const openapi = program.commands.find(command => command.name() === 'openapi');
+    expect(openapi?.helpInformation()).toContain('--auth-flow');
+    const action = jest.fn();
+    const send = program.commands.find(command => command.name() === 'send');
+    if (!send) {
+      throw new Error('send command is missing');
+    }
+    send.action(action);
+    await program.parseAsync(['node', 'httpyac', 'example.http']);
+    expect(action.mock.calls[0][0]).toEqual(['example.http']);
+  });
+  it.each([false, true])('passes detailed assertion selection to OpenAPI generation: %s', async enabled => {
+    const program = await createProgram();
+    const openapi = program.commands.find(command => command.name() === 'openapi');
+    if (!openapi) {
+      throw new Error('openapi command is missing');
+    }
+    const action = jest.fn();
+    openapi.action(action);
+    await program.parseAsync(['node', 'httpyac', 'openapi', 'api.yaml', ...(enabled ? ['--detailed-asserts'] : [])]);
+    expect(action.mock.calls[0][1].detailedAsserts === true).toBe(enabled);
+  });
   describe('convertCliOptionsToContext', () => {
     it('disables ANSI colors when explicitly requested', () => {
       const result = convertCliOptionsToContext({ color: false });

@@ -1,0 +1,204 @@
+openapi: 3.0.3
+info:
+  title: Todo CRUD API
+  version: 1.0.0
+  description: |
+    An example Todo API with OpenID Connect client-credentials authentication,
+    explicit CRUD workflow links, and a public Kubernetes health endpoint.
+    The local test server is WireMock, not a production API or identity provider.
+servers:
+  - url: http://localhost:8089
+    description: Local end-to-end WireMock server
+security:
+  - todo:
+      - todo.read
+      - todo.write
+tags:
+  - name: todos
+    description: Authenticated Todo operations
+  - name: health
+    description: Public Kubernetes HTTP probes
+paths:
+  /api/todos:
+    get:
+      operationId: listTodos
+      summary: List todos
+      description: Return the available todos.
+      tags: [todos]
+      responses:
+        '200':
+          description: Todo list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [todos]
+                properties:
+                  todos:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Todo'
+              example:
+                todos:
+                  - id: 73
+                    title: Write OpenAPI tests
+                    completed: false
+    post:
+      operationId: createTodo
+      summary: Create a todo
+      description: |
+        Create a todo from the supplied example.
+        Response links carry its server-assigned ID to read, update, and delete.
+      tags: [todos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoInput'
+            example:
+              title: Write OpenAPI tests
+              completed: false
+      responses:
+        '201':
+          description: Created todo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+              example:
+                id: 73
+                title: Write OpenAPI tests
+                completed: false
+          links:
+            ReadCreatedTodo:
+              operationId: getTodo
+              parameters:
+                id: $response.body#/id
+            UpdateCreatedTodo:
+              operationId: updateTodo
+              parameters:
+                id: $response.body#/id
+            DeleteCreatedTodo:
+              operationId: deleteTodo
+              parameters:
+                id: $response.body#/id
+  /api/todos/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Server-assigned Todo ID; replaced by the create response when linked.
+        schema:
+          type: integer
+          minimum: 1
+        example: 1
+    get:
+      operationId: getTodo
+      summary: Read a todo
+      description: Read the Todo identified by its ID.
+      tags: [todos]
+      responses:
+        '200':
+          description: Todo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+        '404':
+          description: Todo not found
+    patch:
+      operationId: updateTodo
+      summary: Update a todo
+      description: Change the Todo title and completion flag.
+      tags: [todos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoInput'
+            example:
+              title: Verify generated workflow
+              completed: true
+      responses:
+        '200':
+          description: Updated todo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+    delete:
+      operationId: deleteTodo
+      summary: Delete a todo
+      description: Delete the Todo without returning a response body.
+      tags: [todos]
+      responses:
+        '204':
+          description: Todo deleted; no content
+  /health:
+    get:
+      operationId: health
+      summary: Kubernetes health check
+      description: |
+        Public HTTP probe endpoint for both Kubernetes liveness and readiness.
+        Return 200 while healthy, or 503 when the application cannot serve traffic.
+        No client credentials or bearer token are needed.
+      tags: [health]
+      security: []
+      responses:
+        '200':
+          description: Application is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+              example:
+                status: ok
+        '503':
+          description: Application is unhealthy or unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+              example:
+                status: unhealthy
+components:
+  securitySchemes:
+    todo:
+      type: openIdConnect
+      description: |
+        Discover the token endpoint and use client_credentials.
+        Supply OAS_TODO_CLIENT_ID and OAS_TODO_CLIENT_SECRET when executing requests.
+      openIdConnectUrl: http://localhost:8089/todo-oidc/.well-known/openid-configuration
+  schemas:
+    TodoInput:
+      type: object
+      required: [title, completed]
+      properties:
+        title:
+          type: string
+          description: Todo title
+          example: Write OpenAPI tests
+        completed:
+          type: boolean
+          description: Whether the Todo is complete
+          default: false
+    Todo:
+      allOf:
+        - $ref: '#/components/schemas/TodoInput'
+        - type: object
+          required: [id]
+          properties:
+            id:
+              type: integer
+              readOnly: true
+              description: Server-assigned ID

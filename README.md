@@ -40,6 +40,14 @@ docker run -it -v ${PWD}:/data ghcr.io/zerowiggliness/httpyac:latest --version
 
 ## Commands
 
+Generate `.http` requests from OpenAPI 3.x JSON or YAML:
+
+```shell
+httpyac openapi api.yaml --path "/api/todos,/api/todos/*" --output todos.http
+```
+
+Supports ordered method/path, wildcard and regex selectors, metadata, examples, native authentication, response assertions, and explicit OpenAPI workflow links. See the [Todo CRUD example with Kubernetes health](examples/openapi/README.md) and [OpenAPI CLI guide](docs/wiki/Installation-CLI.md#httpyac-openapi).
+
 ```shell
 > httpyac --help
 
@@ -51,6 +59,7 @@ Options:
 
 Commands:
   oauth2 [options]              generate oauth2 token
+  openapi [options] <fileName>  generate http files from OpenAPI 3.x JSON or YAML
   send [options] <fileName...>  send/ execute http files
   help [command]                display help for command
 ```

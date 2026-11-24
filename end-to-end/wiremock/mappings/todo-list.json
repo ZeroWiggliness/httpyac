@@ -1,0 +1,13 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPath": "/api/todos",
+    "headers": { "Authorization": { "equalTo": "Bearer httpyac-todo-test-token" } }
+  },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": { "todos": [] }
+  }
+}
