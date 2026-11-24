@@ -256,7 +256,12 @@ function assertions(operation: Operation, warn: Warn, detailedAsserts: boolean):
         ? `${media}.startsWith(${JSON.stringify(kind.slice(0, -1).toLowerCase())})`
         : `${media} === ${JSON.stringify(kind.toLowerCase())}`;
     };
-    const specificity = (kind: string) => (kind === '*/*' ? 0 : kind.endsWith('/*') ? 1 : 2);
+    const specificity = (kind: string) => {
+      if (kind === '*/*') {
+        return 0;
+      }
+      return kind.endsWith('/*') ? 1 : 2;
+    };
     const unconditional = success.length === 1 && status !== '2XX';
     if (unconditional) {
       if (!mediaTypes.includes('*/*')) {
@@ -291,9 +296,7 @@ function assertions(operation: Operation, warn: Warn, detailedAsserts: boolean):
             : 'response.parsedBody',
           warn,
           new Set(),
-          unconditional && mediaTypes.length === 1 && !kind.endsWith('/*')
-            ? { lines: native, path: '' }
-            : undefined
+          unconditional && mediaTypes.length === 1 && !kind.endsWith('/*') ? { lines: native, path: '' } : undefined
         );
         lines.push(...new Set(native));
         if (detailedAsserts && check !== 'true') {
@@ -373,11 +376,11 @@ function renderBody(
       }
       const property = optionalObject(properties[name], `multipart ${name}`);
       const settings = optionalObject(encoding[name], 'multipart encoding');
-      const itemSchema = Array.isArray(value)
-        ? typeof property.items === 'boolean'
-          ? {}
-          : optionalObject(property.items, `multipart ${name} items`)
-        : property;
+      let itemSchema = property;
+      if (Array.isArray(value)) {
+        itemSchema =
+          typeof property.items === 'boolean' ? {} : optionalObject(property.items, `multipart ${name} items`);
+      }
       const binary = itemSchema.format === 'binary' || itemSchema.format === 'base64';
       const style = text(settings.style, 'form');
       const explode = settings.explode === undefined ? style === 'form' : settings.explode === true;
