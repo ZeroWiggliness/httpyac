@@ -41,6 +41,8 @@ export class AuthenticationGenerator {
   private readonly usedOverrides = new Set<string>();
   private readonly usedFlows = new Set<string>();
   private readonly credentialNames = new Map<string, string>();
+  private readonly credentialVariables = new Map<string, string>();
+  private readonly reservedVariables = new Set<string>();
 
   constructor(
     private readonly api: OpenApi,
@@ -88,7 +90,18 @@ export class AuthenticationGenerator {
       }
       this.credentialNames.set(scheme, credentialName);
     }
-    const variable = `${identifier(`auth_${credentialName.toLowerCase()}`)}_${setting}`;
+    const key = JSON.stringify([scheme, setting]);
+    let variable = this.credentialVariables.get(key);
+    if (!variable) {
+      const base = `${identifier(`auth_${credentialName.toLowerCase()}`)}_${setting}`;
+      variable = base;
+      let index = 2;
+      while (this.reservedVariables.has(variable)) {
+        variable = `${base}_${index++}`;
+      }
+      this.reservedVariables.add(variable);
+      this.credentialVariables.set(key, variable);
+    }
     const environment = `OAS_${credentialName}_${setting.replace(/([a-z])([A-Z])/gu, '$1_$2').toUpperCase()}`;
     this.variables.set(variable, `{{$processEnv ${environment}}}`);
     return `{{${variable}}}`;
@@ -173,7 +186,7 @@ export class AuthenticationGenerator {
         }
         case 'oauth2':
         case 'openIdConnect':
-          this.header(result, 'Authorization', await this.oauth(name, scheme, scopes));
+          this.header(result, 'Authorization', await this.oauth(name, scheme, scopes, operation));
           break;
         default:
           throw new Error(`Unsupported security scheme ${name}: ${text(scheme.type)}`);
@@ -192,7 +205,45 @@ export class AuthenticationGenerator {
     result.headers[name] = value;
   }
 
-  private async oauth(name: string, scheme: JsonObject, scopes: string[]): Promise<string> {
+  private endpoint(value: string, operation: Operation, error: string): string {
+    try {
+      let url: URL;
+      if (/^[a-z][a-z\d+.-]*:/iu.test(value)) {
+        url = new URL(value);
+      } else {
+        const servers = array(
+          operation.operation.servers ?? operation.item.servers ?? this.api.root.servers,
+          'servers'
+        );
+        const server = servers.length ? object(servers[0], 'server') : { url: 'http://localhost' };
+        let base = text(server.url);
+        for (const [key, value] of Object.entries(optionalObject(server.variables, 'server variables'))) {
+          const definition = object(value, 'server variable');
+          if (definition.default === undefined) {
+            throw new Error(`Missing default for server variable ${key}`);
+          }
+          base = base.split(`{${key}}`).join(String(definition.default));
+        }
+        if (/[{}]/u.test(base)) {
+          throw new Error('Unresolved server variable');
+        }
+        url = new URL(value, base);
+      }
+      if (!value || /[\s{}]/u.test(value) || !['http:', 'https:'].includes(url.protocol)) {
+        throw new Error('Invalid URL');
+      }
+      if (!/^[a-z][a-z\d+.-]*:/iu.test(value)) {
+        this.warnings.add(
+          `Relative OAuth endpoints for ${operation.name} use server defaults and do not follow runtime server overrides; update the OAuth endpoint variables when changing the server to avoid sending credentials to the original host`
+        );
+      }
+      return url.href;
+    } catch {
+      throw new Error(error);
+    }
+  }
+
+  private async oauth(name: string, scheme: JsonObject, scopes: string[], operation: Operation): Promise<string> {
     let available: Record<string, JsonObject> = {};
     if (scheme.type === 'openIdConnect') {
       const url = text(scheme.openIdConnectUrl);
@@ -245,34 +296,63 @@ export class AuthenticationGenerator {
     }
     const selected = await this.choose(`OAuth flow for ${name}`, choices, normalized);
     overrides.forEach(value => this.usedFlows.add(value));
-    const key = JSON.stringify([name, selected, scopes]);
+    const flow = available[selected];
+    const rawToken = text(flow.tokenUrl);
+    const resolveEndpoint = (url: string, error: string) => {
+      if (scheme.type === 'oauth2') {
+        return this.endpoint(url, operation, error);
+      }
+      if (!/^https?:\/\//u.test(url)) {
+        throw new Error(error);
+      }
+      return url;
+    };
+    const endpoint =
+      !rawToken && selected === 'implicit'
+        ? ''
+        : resolveEndpoint(rawToken, `Missing/invalid token URL for ${name} ${selected}`);
+    const authorization =
+      selected === 'authorization_code' || selected === 'implicit'
+        ? resolveEndpoint(text(flow.authorizationUrl), `Missing/invalid authorization URL for ${name} ${selected}`)
+        : '';
+    const key = JSON.stringify([name, selected, scopes, endpoint, authorization]);
     let prefix = this.configurations.get(key);
     if (!prefix) {
-      prefix = `${identifier(`auth_${name}`)}_flow${this.configurations.size + 1}`;
+      const base = `${identifier(`auth_${name}`)}_flow${this.configurations.size + 1}`;
+      const settings = [
+        'tokenEndpoint',
+        'authorizationEndpoint',
+        'clientId',
+        'clientSecret',
+        'username',
+        'password',
+        'scope',
+        'keepAlive',
+      ];
+      prefix = base;
+      let index = 2;
+      const reserved = (candidate: string) =>
+        settings.some(setting => this.reservedVariables.has(`${candidate}_${setting}`));
+      while (reserved(prefix)) {
+        prefix = `${base}_${index++}`;
+      }
+      settings.forEach(setting => this.reservedVariables.add(`${prefix}_${setting}`));
       this.configurations.set(key, prefix);
-      const flow = available[selected];
       if (scheme.type === 'oauth2') {
         const declared = object(flow.scopes, `${name} flow scopes`);
         if (scopes.some(scope => !Object.hasOwn(declared, scope))) {
           throw new Error(`Security requirement uses an undeclared scope for ${name}: ${scopes.join(' ')}`);
         }
       }
-      const endpoint = text(flow.tokenUrl);
       if (!endpoint && selected === 'implicit') {
         this.variables.set(`${prefix}_tokenEndpoint`, this.credential(name, 'tokenEndpoint'));
         this.warnings.add(
           `The native implicit helper requires a token endpoint not supplied by ${name}; configure OAS_${this.credentialNames.get(name)}_TOKEN_ENDPOINT before execution`
         );
-      } else if (!/^https?:\/\//u.test(endpoint)) {
-        throw new Error(`Missing/invalid token URL for ${name} ${selected}`);
       } else {
         this.variables.set(`${prefix}_tokenEndpoint`, singleLine(endpoint));
       }
       if (selected === 'authorization_code' || selected === 'implicit') {
-        const authorization = text(flow.authorizationUrl);
-        if (!/^https?:\/\//u.test(authorization)) {
-          throw new Error(`Missing/invalid authorization URL for ${name} ${selected}`);
-        }
         this.variables.set(`${prefix}_authorizationEndpoint`, singleLine(authorization));
       }
       this.variables.set(`${prefix}_clientId`, this.credential(name, 'clientId'));

@@ -157,6 +157,57 @@ describe('OpenAPI generation integration', () => {
     }
   );
 
+  it.each([
+    ['application/json; charset=utf-8', 'exact', true],
+    ['application/json', true, false],
+    ['application/xml', 42, true],
+    ['application/xml', true, false],
+    ['text/plain', true, true],
+    ['text/plain', 'exact', false],
+  ])('uses the most specific response media schema for %s', async (contentType, body, passes) => {
+    const api = fixture({
+      responses: {
+        '200': {
+          description: 'OK',
+          content: {
+            '*/*': { schema: { type: 'boolean' } },
+            'application/*': { schema: { type: 'integer' } },
+            'application/json': { schema: { type: 'string' } },
+          },
+        },
+      },
+    });
+    const generated = await generateHttp(api, api.operations, { detailedAsserts: true });
+    initHttpClientProvider(async () => ({
+      statusCode: 200,
+      headers: { 'content-type': contentType },
+      parsedBody: body,
+    }));
+    const file = await parseHttp(generated.content);
+    await send({ httpFile: file });
+    const results = file.httpRegions.flatMap(region => region.testResults || []);
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every(result => result.status === TestResultStatus.SUCCESS)).toBe(passes);
+  });
+
+  it('checks a wildcard text response using its unparsed body', async () => {
+    const api = fixture({
+      responses: {
+        '200': {
+          description: 'OK',
+          content: { 'text/*': { schema: { type: 'string' } } },
+        },
+      },
+    });
+    const generated = await generateHttp(api, api.operations, { detailedAsserts: true });
+    initHttpClientProvider(async () => ({ statusCode: 200, headers: { 'content-type': 'text/plain' }, body: 'hello' }));
+    const file = await parseHttp(generated.content);
+    await send({ httpFile: file });
+    const results = file.httpRegions.flatMap(region => region.testResults || []);
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every(result => result.status === TestResultStatus.SUCCESS)).toBe(true);
+  });
+
   it('serializes path/query/header/cookie parameters while preserving false, zero and empty examples', async () => {
     const api = fixture({
       parameters: [

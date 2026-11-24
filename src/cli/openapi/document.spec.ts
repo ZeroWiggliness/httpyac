@@ -1,6 +1,6 @@
+import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import { createServer, Server } from 'http';
-import { tmpdir } from 'os';
 import { join } from 'path';
 
 import { loadOpenApi, object, selectOperations } from './document';
@@ -9,7 +9,8 @@ describe('OpenAPI loading and selection', () => {
   let directory: string;
   let files: string[];
   beforeEach(async () => {
-    directory = await fs.mkdtemp(join(tmpdir(), 'httpyac-openapi-unit-'));
+    directory = join(process.cwd(), `.httpyac-openapi-unit-${randomUUID()}`);
+    await fs.mkdir(directory);
     files = [];
   });
   afterEach(async () => {
@@ -24,6 +25,19 @@ describe('OpenAPI loading and selection', () => {
   }
   const root = { openapi: '3.1.0', info: { title: 'Test', version: '1' } };
   const operation = { responses: { '204': { description: 'OK' } } };
+
+  it('ignores Paths Object extensions while validating actual path keys', async () => {
+    const api = await loadOpenApi(
+      await write(
+        'extensions.json',
+        JSON.stringify({ ...root, paths: { 'x-metadata': 'metadata', 'x-items': [1, 2], '/test': { get: operation } } })
+      )
+    );
+    expect(api.operations.map(value => value.path)).toEqual(['/test']);
+    await expect(
+      loadOpenApi(await write('bad-path.json', JSON.stringify({ ...root, paths: { invalid: {} } })))
+    ).rejects.toThrow('OpenAPI path must start with /');
+  });
 
   it('preserves ordered exact/wildcard/method selectors and deliberate repeated operations', async () => {
     const api = await loadOpenApi(

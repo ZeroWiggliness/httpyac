@@ -256,6 +256,7 @@ function assertions(operation: Operation, warn: Warn, detailedAsserts: boolean):
         ? `${media}.startsWith(${JSON.stringify(kind.slice(0, -1).toLowerCase())})`
         : `${media} === ${JSON.stringify(kind.toLowerCase())}`;
     };
+    const specificity = (kind: string) => (kind === '*/*' ? 0 : kind.endsWith('/*') ? 1 : 2);
     const unconditional = success.length === 1 && status !== '2XX';
     if (unconditional) {
       if (!mediaTypes.includes('*/*')) {
@@ -281,21 +282,29 @@ function assertions(operation: Operation, warn: Warn, detailedAsserts: boolean):
     }
     for (const [kind, mediaValue] of Object.entries(content)) {
       const definition = object(mediaValue, 'response media type');
-      if ((kind.includes('json') || kind === '*/*') && definition.schema !== undefined) {
+      if ((kind.includes('json') || kind.endsWith('/*')) && definition.schema !== undefined) {
         const native: string[] = [];
         const check = schemaCheck(
           definition.schema,
-          'response.parsedBody',
+          kind.endsWith('/*')
+            ? '(response.parsedBody === undefined ? response.body : response.parsedBody)'
+            : 'response.parsedBody',
           warn,
           new Set(),
-          unconditional && mediaTypes.length === 1 ? { lines: native, path: '' } : undefined
+          unconditional && mediaTypes.length === 1 && !kind.endsWith('/*')
+            ? { lines: native, path: '' }
+            : undefined
         );
         lines.push(...new Set(native));
         if (detailedAsserts && check !== 'true') {
+          const moreSpecific = mediaTypes.filter(other => specificity(other) > specificity(kind));
+          const selectedMedia = [mediaCheck(kind), ...moreSpecific.map(other => `!(${mediaCheck(other)})`)].join(
+            ' && '
+          );
           lines.push(
             unconditional && mediaTypes.length === 1
               ? `?? js ${check} isTrue`
-              : `?? js (!(${guard}) || !(${mediaCheck(kind)}) || (${check})) isTrue`
+              : `?? js (!(${guard}) || !(${selectedMedia}) || (${check})) isTrue`
           );
         }
       }
@@ -308,6 +317,7 @@ function renderBody(
   operation: Operation,
   binding: Binding | undefined,
   variables: Map<string, string>,
+  allocate: (name: string) => string,
   warn: Warn
 ): { headers: Record<string, string>; body: string } {
   if (operation.operation.requestBody === undefined) {
@@ -357,32 +367,60 @@ function renderBody(
     const schema = optionalObject(media.schema, 'multipart schema');
     const properties = optionalObject(schema.properties, 'multipart properties');
     const encoding = optionalObject(media.encoding, 'multipart encoding');
-    const parts = Object.entries(object(example, 'multipart example')).map(([name, value]) => {
+    const parts = Object.entries(object(example, 'multipart example')).flatMap(([name, value]) => {
       if (/["\r\n]/u.test(name)) {
         throw new Error('Invalid multipart field name');
       }
       const property = optionalObject(properties[name], `multipart ${name}`);
       const settings = optionalObject(encoding[name], 'multipart encoding');
-      if (settings.headers || settings.style) {
-        warn(`Multipart encoding headers/style for ${name} need manual review`);
+      const itemSchema = Array.isArray(value)
+        ? typeof property.items === 'boolean'
+          ? {}
+          : optionalObject(property.items, `multipart ${name} items`)
+        : property;
+      const binary = itemSchema.format === 'binary' || itemSchema.format === 'base64';
+      const style = text(settings.style, 'form');
+      const explode = settings.explode === undefined ? style === 'form' : settings.explode === true;
+      let items = Array.isArray(value) ? value : [value];
+      let unsupported = !!settings.headers || settings.allowReserved !== undefined;
+      if (settings.contentType && (settings.style !== undefined || settings.explode !== undefined)) {
+        warn(`Multipart encoding style/explode for ${name} ignored because contentType is set`);
+      } else if (Array.isArray(value) && (style !== 'form' || !explode)) {
+        if (
+          !binary &&
+          ['form', 'spaceDelimited', 'pipeDelimited'].includes(style) &&
+          (style === 'form' || !explode) &&
+          value.every(item => item === null || typeof item !== 'object')
+        ) {
+          const serialized = serializeParameter(value, name, 'query', style, false);
+          items = [serialized.slice(serialized.indexOf('=') + 1)];
+        } else {
+          unsupported = true;
+        }
+      } else if (!Array.isArray(value) && (settings.style !== undefined || settings.explode !== undefined)) {
+        unsupported = true;
       }
-      const binary = property.format === 'binary' || property.format === 'base64';
-      const variable = identifier(`${operation.name}_${name}_file`);
-      if (binary) {
-        variables.set(variable, `./${name}.bin`);
+      if (unsupported) {
+        warn(`Multipart encoding for ${name} cannot be fully serialized; review its parts manually`);
       }
-      const part = typeof value === 'string' ? value : JSON.stringify(value);
-      return [
-        `--${boundary}`,
-        `Content-Disposition: form-data; name="${name}"${binary ? `; filename="${name}.bin"` : ''}`,
-        ...(binary || settings.contentType || isObject(value) || Array.isArray(value)
-          ? [
-              `Content-Type: ${singleLine(text(settings.contentType, binary ? 'application/octet-stream' : 'application/json'))}`,
-            ]
-          : []),
-        '',
-        binary ? `< {{${variable}}}` : part,
-      ].join('\n');
+      return items.map(item => {
+        const variable = binary ? allocate(identifier(`${operation.name}_${name}_file`)) : '';
+        if (binary) {
+          variables.set(variable, `./${name}.bin`);
+        }
+        const part = typeof item === 'string' ? item : JSON.stringify(item);
+        return [
+          `--${boundary}`,
+          `Content-Disposition: form-data; name="${name}"${binary ? `; filename="${name}.bin"` : ''}`,
+          ...(binary || settings.contentType || isObject(item) || Array.isArray(item)
+            ? [
+                `Content-Type: ${singleLine(text(settings.contentType, binary ? 'application/octet-stream' : 'application/json'))}`,
+              ]
+            : []),
+          '',
+          binary ? `< {{${variable}}}` : part,
+        ].join('\n');
+      });
     });
     return {
       headers: { 'Content-Type': `${kind}; boundary=${boundary}` },
@@ -395,7 +433,7 @@ function renderBody(
     }
     return { headers: { 'Content-Type': kind }, body: example };
   }
-  const variable = `${operation.name}_bodyFile`;
+  const variable = allocate(`${operation.name}_bodyFile`);
   variables.set(variable, './payload.bin');
   warn(`Provide a file for ${operation.name} ${kind} at {{${variable}}}`);
   return { headers: { 'Content-Type': kind }, body: `< {{${variable}}}` };
@@ -412,6 +450,20 @@ export async function generateHttp(
   const variables = new Map<string, string>();
   const servers = new Map<string, string>();
   const regions: string[] = [];
+  const authentications = [];
+  for (const operation of selected) {
+    authentications.push(await authentication.generate(operation));
+  }
+  const usedNames = new Set([...selected.map(operation => operation.name), ...authentication.variables.keys()]);
+  const allocate = (name: string): string => {
+    let candidate = name;
+    let suffix = 2;
+    while (usedNames.has(candidate)) {
+      candidate = `${name}_${suffix++}`;
+    }
+    usedNames.add(candidate);
+    return candidate;
+  };
   for (const [index, source] of selected.entries()) {
     for (const link of responseLinks(source)) {
       const targets = linkTargets(api, selected, link);
@@ -424,7 +476,7 @@ export async function generateHttp(
   }
   for (const [index, operation] of selected.entries()) {
     const links = findLinks(api, selected, index, warn);
-    const auth = await authentication.generate(operation);
+    const auth = authentications[index];
     const serverList = array(operation.operation.servers ?? operation.item.servers ?? api.root.servers, 'servers');
     const server = serverList.length ? object(serverList[0], 'server') : { url: 'http://localhost' };
     const serverKey = JSON.stringify(server);
@@ -436,14 +488,14 @@ export async function generateHttp(
     if (!serverVariable) {
       for (const [key, value] of Object.entries(optionalObject(server.variables, 'server variables'))) {
         const definition = object(value, 'server variable');
-        const variable = identifier(`server${servers.size + 1}_${key}`);
+        const variable = allocate(identifier(`server${servers.size + 1}_${key}`));
         if (definition.default === undefined) {
           throw new Error(`Missing default for server variable ${key}`);
         }
         variables.set(variable, singleLine(String(definition.default)));
         serverUrl = serverUrl.split(`{${key}}`).join(`{{${variable}}}`);
       }
-      serverVariable = servers.size === 0 ? 'baseUrl' : `baseUrl${servers.size + 1}`;
+      serverVariable = allocate(servers.size === 0 ? 'baseUrl' : `baseUrl${servers.size + 1}`);
       servers.set(serverKey, serverVariable);
       const defaultUrl = serverUrl.replace(/[\r\n]/gu, '').replace(/\/$/u, '');
       const expression = defaultUrl
@@ -463,7 +515,6 @@ export async function generateHttp(
     for (const parameter of parameters(operation)) {
       const name = text(parameter.name);
       const location = text(parameter.in);
-      const variable = parameterVariable(operation, parameter);
       const key = `${location}:${name}`;
       let binding = links.parameters.get(key);
       if (parameter.content || parameter.allowReserved || parameter.allowEmptyValue) {
@@ -482,7 +533,11 @@ export async function generateHttp(
         throw new Error(`Unsupported ${location} parameter style ${style}`);
       }
       const value = sample(parameter, warn);
-      const type = optionalObject(parameter.schema, 'parameter schema').type;
+      const schema = parameter.schema;
+      if (schema === false) {
+        warn(`Parameter ${name} on ${operation.name} has a false schema; no value is valid`);
+      }
+      const type = typeof schema === 'boolean' ? undefined : optionalObject(schema, 'parameter schema').type;
       const complex = (value !== null && typeof value === 'object') || type === 'object' || type === 'array';
       const supported = !complex && (style === 'simple' || style === 'form');
       if (binding && !supported) {
@@ -492,6 +547,7 @@ export async function generateHttp(
       }
       let rendered: string;
       if (supported) {
+        const variable = binding ? '' : allocate(parameterVariable(operation, parameter));
         if (!binding) {
           variables.set(variable, JSON.stringify({ value }));
         }
@@ -502,6 +558,7 @@ export async function generateHttp(
             : `{{encodeURIComponent(${expression}${binding ? '.toString()' : ''})}}`;
         rendered = location === 'query' || location === 'cookie' ? `${encodeURIComponent(name)}=${encoded}` : encoded;
       } else {
+        const variable = allocate(parameterVariable(operation, parameter));
         variables.set(
           variable,
           singleLine(
@@ -551,7 +608,7 @@ export async function generateHttp(
       }
       headers[name] = value;
     }
-    const body = renderBody(operation, links.body, variables, warn);
+    const body = renderBody(operation, links.body, variables, allocate, warn);
     Object.assign(headers, body.headers);
     const responseTypes = Object.values(object(operation.operation.responses, 'responses')).flatMap(value =>
       Object.keys(optionalObject(object(value, 'response').content, 'response content'))

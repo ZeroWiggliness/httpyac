@@ -85,6 +85,9 @@ export async function loadOpenApi(fileName: string): Promise<OpenApi> {
   const operations: Operation[] = [];
   const names = new Map<string, number>();
   for (const [path, value] of Object.entries(object(root.paths, 'paths'))) {
+    if (path.startsWith('x-')) {
+      continue;
+    }
     if (!path.startsWith('/')) {
       throw new Error(`OpenAPI path must start with /: ${path}`);
     }

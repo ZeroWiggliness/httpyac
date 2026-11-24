@@ -74,7 +74,94 @@ describe('OpenAPI authentication', () => {
     const generator = new AuthenticationGenerator(api, { authFlow: ['oauth=client_credentials'] });
     expect((await generator.generate(operation)).headers.Authorization).toContain('oauth2 client_credentials ');
     expect([...generator.variables.values()]).toContain('read');
+    expect([...generator.warnings]).toEqual([]);
     generator.validateOverrides();
+  });
+
+  it('resolves relative OAuth endpoints against the applicable server with expanded defaults', async () => {
+    const { api, operation } = fixture([{ oauth: ['read'] }], {
+      oauth: {
+        type: 'oauth2',
+        flows: { authorizationCode: { tokenUrl: 'token', authorizationUrl: '/authorize', scopes: { read: '' } } },
+      },
+    });
+    api.root.servers = [{ url: 'https://root.example/api/' }];
+    operation.item.servers = [{ url: 'https://path.example/{version}/', variables: { version: { default: 'v1' } } }];
+    const generator = new AuthenticationGenerator(api, {});
+    await generator.generate(operation);
+    expect([...generator.variables.values()]).toEqual(
+      expect.arrayContaining(['https://path.example/v1/token', 'https://path.example/authorize'])
+    );
+    expect([...generator.warnings].join(' ')).toContain('do not follow runtime server overrides');
+    expect([...generator.warnings].join(' ')).toContain('avoid sending credentials to the original host');
+    await generator.generate({ ...operation, operation: { servers: [{ url: 'https://operation.example/api/' }] } });
+    expect([...generator.variables.values()]).toEqual(
+      expect.arrayContaining(['https://operation.example/api/token', 'https://operation.example/authorize'])
+    );
+    await generator.generate({ ...operation, item: {} });
+    expect([...generator.variables.values()]).toContain('https://root.example/api/token');
+    expect([...generator.variables.keys()].filter(key => key.endsWith('_tokenEndpoint'))).toHaveLength(3);
+  });
+
+  it('uses the default server and rejects unresolvable or invalid OAuth URLs', async () => {
+    const { api, operation } = fixture([{ oauth: [] }], {
+      oauth: { type: 'oauth2', flows: { clientCredentials: { tokenUrl: '/token', scopes: {} } } },
+    });
+    const generator = new AuthenticationGenerator(api, {});
+    await generator.generate(operation);
+    expect([...generator.variables.values()]).toContain('http://localhost/token');
+    for (const servers of [
+      [{ url: '/relative' }],
+      [{ url: 'https://{host}/', variables: { host: {} } }],
+      [{ url: 'https://{host}/' }],
+    ]) {
+      await expect(new AuthenticationGenerator(api, {}).generate({ ...operation, item: { servers } })).rejects.toThrow(
+        'Missing/invalid token URL'
+      );
+    }
+    const invalid = fixture([{ oauth: [] }], {
+      oauth: { type: 'oauth2', flows: { clientCredentials: { tokenUrl: 'ftp://example.com/token', scopes: {} } } },
+    });
+    await expect(new AuthenticationGenerator(invalid.api, {}).generate(invalid.operation)).rejects.toThrow(
+      'Missing/invalid token URL'
+    );
+  });
+
+  it.each([false, true])(
+    'avoids collisions between OAuth configuration and credential variables (basic first: %s)',
+    async basicFirst => {
+      const { api, operation } = fixture([], {
+        oauth: { type: 'oauth2', flows: { password: { tokenUrl: 'https://id.example/token', scopes: {} } } },
+        oauth_flow1: { type: 'http', scheme: 'basic' },
+      });
+      const oauth = { ...operation, operation: { security: [{ oauth: [] }] } };
+      const basic = { ...operation, operation: { security: [{ oauth_flow1: [] }] } };
+      const generator = new AuthenticationGenerator(api, {});
+      const first = await generator.generate(basicFirst ? basic : oauth);
+      const second = await generator.generate(basicFirst ? oauth : basic);
+      const basicHeader = (basicFirst ? first : second).headers.Authorization;
+      const oauthHeader = (basicFirst ? second : first).headers.Authorization;
+      const prefix = oauthHeader.split(' ')[2];
+      expect(generator.variables.get(`${prefix}_username`)).toBe('{{oas_auth_oauth_username}}');
+      const basicUsername = /basic \{\{([^}]+)\}\}/u.exec(basicHeader)?.[1];
+      expect(basicUsername).toBeDefined();
+      expect(basicUsername).not.toBe(`${prefix}_username`);
+      expect(generator.variables.get(basicUsername!)).toBe('{{$processEnv OAS_OAUTH_FLOW1_USERNAME}}');
+    }
+  );
+
+  it('rejects relative OpenID discovery URLs without fetching', async () => {
+    const request = jest.spyOn(global, 'fetch');
+    const { api, operation } = fixture([{ oidc: [] }], {
+      oidc: { type: 'openIdConnect', openIdConnectUrl: '/discovery' },
+    });
+    await expect(
+      new AuthenticationGenerator(api, {}).generate({
+        ...operation,
+        item: { servers: [{ url: 'https://one.example' }] },
+      })
+    ).rejects.toThrow('Expected an absolute HTTP(S) openIdConnectUrl');
+    expect(request).not.toHaveBeenCalled();
   });
 
   it('retrieves OpenID discovery without obtaining a token', async () => {
