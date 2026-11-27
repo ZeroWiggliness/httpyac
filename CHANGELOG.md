@@ -1,3 +1,14 @@
+## v7.0.0
+### ⚠ BREAKING CHANGES
+
+* Adds openapi cli command to generate http files based on the api (#67) ([6874000](https://github.com/ZeroWiggliness/httpyac/commit/687400034ddf82fe8fd532aebdef060d5f41dc26))
+
+### Features
+* Adds openapi cli command to generate http files based on the api ([#67](https://github.com/ZeroWiggliness/httpyac/issues/67)) ([6874000](https://github.com/ZeroWiggliness/httpyac/commit/687400034ddf82fe8fd532aebdef060d5f41dc26))
+
+---
+_Generated on 2026-11-24_
+
 ## v6.18.1
 
 ### Bug Fixes
